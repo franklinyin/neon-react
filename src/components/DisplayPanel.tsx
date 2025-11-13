@@ -1,14 +1,58 @@
 import { useState, useEffect } from 'react';
 import { ChevronDown } from 'lucide-react';
 
-export default function DisplayPanel() {
+interface DisplayPanelProps {
+  zoomHandler?: {
+    zoom: number;
+    zoomTo: (k: number) => void;
+    resetZoomAndPan: () => void;
+  };
+}
+
+export default function DisplayPanel({ zoomHandler }: DisplayPanelProps) {
   const [isOpen, setIsOpen] = useState(true);
-  const [zoom, setZoom] = useState(100);
+  const [zoom, setZoom] = useState(zoomHandler?.zoom || 100);
   const [glyphOpacity, setGlyphOpacity] = useState(100);
   const [lastGlyphOpacity, setLastGlyphOpacity] = useState(100);
   const [imageOpacity, setImageOpacity] = useState(100);
   const [highlightType, setHighlightType] = useState('Off');
   const [isHighlightOpen, setIsHighlightOpen] = useState(false);
+
+  // Sync with zoom handler
+  useEffect(() => {
+    if (zoomHandler) {
+      setZoom(zoomHandler.zoom);
+    }
+  }, [zoomHandler?.zoom]);
+
+  // Keyboard shortcuts for zoom (based on setZoomControls in DisplayControls.ts)
+  useEffect(() => {
+    if (!zoomHandler) return;
+
+    const handleKeyDown = (evt: KeyboardEvent) => {
+      const currentZoom = zoom;
+      if (evt.key === '+') {
+        // Increase zoom by 20
+        const newZoom = Math.min(currentZoom + 20, 400);
+        zoomHandler.zoomTo(newZoom / 100.0);
+        setZoom(newZoom);
+      } else if (evt.key === '-') {
+        // Decrease zoom by 20
+        const newZoom = Math.max(currentZoom - 20, 25);
+        zoomHandler.zoomTo(newZoom / 100.0);
+        setZoom(newZoom);
+      } else if (evt.key === '0') {
+        // Reset zoom
+        zoomHandler.resetZoomAndPan();
+        setZoom(100);
+      }
+    };
+
+    document.body.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [zoomHandler, zoom]);
 
   // Update opacity of MEI elements (images) when slider changes
   // Based on setOpacityFromSlider() in DisplayControls.ts
@@ -30,7 +74,18 @@ export default function DisplayPanel() {
       {isOpen && (
         <div id="displayContents">
           <a className="panel-block has-text-centered">
-            <button className="button" onClick={() => setZoom(100)}>
+            <button 
+              className="button" 
+              id="reset-zoom"
+              onClick={() => {
+                if (zoomHandler) {
+                  zoomHandler.resetZoomAndPan();
+                  setZoom(100);
+                } else {
+                  setZoom(100);
+                }
+              }}
+            >
               Zoom
             </button>
             <input
@@ -41,7 +96,13 @@ export default function DisplayPanel() {
               max="400"
               value={zoom}
               type="range"
-              onChange={(e) => setZoom(Number(e.target.value))}
+              onChange={(e) => {
+                const newZoom = Number(e.target.value);
+                setZoom(newZoom);
+                if (zoomHandler) {
+                  zoomHandler.zoomTo(newZoom / 100.0);
+                }
+              }}
               style={{ flex: 1, margin: '0 10px' }}
             />
             <output id="zoomOutput" htmlFor="zoomSlider">

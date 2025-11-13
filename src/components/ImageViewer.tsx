@@ -1,12 +1,31 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useZoom } from '../hooks/useZoom';
 
 /**
  * ImageViewer Component
  * Displays the manuscript image in the container
  * Based on SingleView.ts - creates SVG with background image
  */
-const ImageViewer: React.FC<{ imagePath?: string }> = ({ imagePath = '/SK-001.png' }) => {
+const ImageViewer: React.FC<{ imagePath?: string; onZoomReady?: (zoom: ReturnType<typeof useZoom>) => void }> = ({ 
+  imagePath = '/SK-001.png',
+  onZoomReady 
+}) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  const [imageDimensions, setImageDimensions] = useState<{ width: number; height: number } | null>(null);
+  const zoom = useZoom(imageDimensions?.width, imageDimensions?.height);
+
+  useEffect(() => {
+    if (svgRef.current) {
+      zoom.setSvgRef(svgRef.current);
+    }
+  }, [zoom, svgRef.current, imageDimensions]);
+
+  useEffect(() => {
+    if (onZoomReady && imageDimensions) {
+      onZoomReady(zoom);
+    }
+  }, [onZoomReady, zoom, imageDimensions]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -16,6 +35,7 @@ const ImageViewer: React.FC<{ imagePath?: string }> = ({ imagePath = '/SK-001.pn
     svg.id = 'svg_group';
     svg.setAttribute('height', window.innerHeight.toString());
     svg.setAttribute('width', '100%');
+    svgRef.current = svg;
 
     // Create background image element
     const bg = document.createElementNS('http://www.w3.org/2000/svg', 'image');
@@ -31,9 +51,17 @@ const ImageViewer: React.FC<{ imagePath?: string }> = ({ imagePath = '/SK-001.pn
       bg.setAttribute('width', img.width.toString());
       bg.setAttribute('height', img.height.toString());
       
-      // Set viewBox based on image dimensions
+      setImageDimensions({ width: img.width, height: img.height });
+      
+      // Set initial viewBox based on image dimensions
       if (!svg.hasAttribute('viewBox')) {
         svg.setAttribute('viewBox', `0 0 ${img.width} ${img.height}`);
+      }
+      
+      // Set SVG ref after image loads
+      if (svgRef.current !== svg) {
+        svgRef.current = svg;
+        zoom.setSvgRef(svg);
       }
     };
     img.src = imagePath;
@@ -52,6 +80,7 @@ const ImageViewer: React.FC<{ imagePath?: string }> = ({ imagePath = '/SK-001.pn
       if (containerRef.current && svg.parentNode) {
         svg.parentNode.removeChild(svg);
       }
+      svgRef.current = null;
     };
   }, [imagePath]);
 
