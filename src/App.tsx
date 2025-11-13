@@ -5,6 +5,7 @@ import InsertPanel from './components/InsertPanel';
 import EditPanel from './components/EditPanel';
 import UndoRedoPanel from './components/UndoRedoPanel';
 import LoadingOverlay from './components/LoadingOverlay';
+import ImageViewer from './components/ImageViewer';
 
 function App() {
   const [loading, setLoading] = useState(false);
@@ -16,6 +17,7 @@ function App() {
       <div className="columns">
         <div id="notification-content" style={{ display: 'none' }}></div>
         <div className="column is-two-thirds box" id="container" style={{ height: 'calc(94vh)' }}>
+          <ImageViewer imagePath="/SK-001.png" />
         </div>
         <div className="column is-one-third is-hidden-mobile" id="right-column">
           <div className="panel">

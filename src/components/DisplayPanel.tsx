@@ -1,13 +1,25 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ChevronDown } from 'lucide-react';
 
 export default function DisplayPanel() {
   const [isOpen, setIsOpen] = useState(true);
   const [zoom, setZoom] = useState(100);
   const [glyphOpacity, setGlyphOpacity] = useState(100);
+  const [lastGlyphOpacity, setLastGlyphOpacity] = useState(100);
   const [imageOpacity, setImageOpacity] = useState(100);
   const [highlightType, setHighlightType] = useState('Off');
   const [isHighlightOpen, setIsHighlightOpen] = useState(false);
+
+  // Update opacity of MEI elements (images) when slider changes
+  // Based on setOpacityFromSlider() in DisplayControls.ts
+  useEffect(() => {
+    const opacityValue = glyphOpacity / 100.0;
+    // Target elements with class 'neon-container' or 'active-page' which contain the rendered MEI images
+    const meiElements = document.querySelectorAll('.neon-container, .active-page') as NodeListOf<HTMLElement>;
+    meiElements.forEach((element) => {
+      element.style.opacity = opacityValue.toString();
+    });
+  }, [glyphOpacity]);
 
   return (
     <div className="panel">
@@ -38,7 +50,19 @@ export default function DisplayPanel() {
           </a>
 
           <a className="panel-block has-text-centered">
-            <button className="button" onClick={() => setGlyphOpacity(100)}>
+            <button 
+              className="button" 
+              id="reset-opacity"
+              onClick={() => {
+                // Exact replica of reset button logic from setOpacityControls()
+                // Toggle between 100% and the last lower opacity (or 0 if last was >= 95)
+                const lowerOpacity = lastGlyphOpacity < 95 ? lastGlyphOpacity / 100.0 : 0;
+                const newOpacity = glyphOpacity === 100 ? lowerOpacity : 1;
+                const newOpacityPercent = Math.round(newOpacity * 100);
+                setLastGlyphOpacity(glyphOpacity); // Store current before changing
+                setGlyphOpacity(newOpacityPercent);
+              }}
+            >
               Glyph Opacity
             </button>
             <input
@@ -49,7 +73,11 @@ export default function DisplayPanel() {
               max="100"
               value={glyphOpacity}
               type="range"
-              onChange={(e) => setGlyphOpacity(Number(e.target.value))}
+              onChange={(e) => {
+                const newOpacity = Number(e.target.value);
+                setGlyphOpacity(newOpacity);
+                setLastGlyphOpacity(newOpacity);
+              }}
               style={{ flex: 1, margin: '0 10px' }}
             />
             <output id="opacityOutput" htmlFor="opacitySlider">

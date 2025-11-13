@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Menu, ChevronDown } from 'lucide-react';
+import EditMEIButton from './EditMEIButton';
 
 export default function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -25,7 +26,7 @@ export default function Navbar() {
 
       <div className={`navbar-menu ${isMenuOpen ? 'is-active' : ''}`} id="navMenu">
         <div className="navbar-start">
-          <div id="dropdown_toggle"></div>
+          <EditMEIButton />
         </div>
 
         <div className="navbar-end">
