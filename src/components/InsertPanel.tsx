@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
+import PrimitiveElements from './insert/PrimitiveElements';
 
 export default function InsertPanel() {
   const [isOpen, setIsOpen] = useState(true);
   const [activeTab, setActiveTab] = useState<'primitiveTab' | 'groupingTab' | 'systemTab'>('primitiveTab');
+  const [activeElementId, setActiveElementId] = useState<string | null>(null);
 
   return (
     <div className="panel">
@@ -39,43 +41,14 @@ export default function InsertPanel() {
           <a className="panel-block has-text-centered">
             <div id="insert_data" className="field is-grouped buttons">
               {activeTab === 'primitiveTab' && (
-                <>
-                  <p className="control">
-                    <button className="button insertel smallel" title="punctum">
-                      <div style={{ width: '42px', height: '42px', background: '#e0e0e0' }} />
-                    </button>
-                  </p>
-                  <p className="control">
-                    <button className="button insertel smallel" title="virga">
-                      <div style={{ width: '42px', height: '42px', background: '#e0e0e0' }} />
-                    </button>
-                  </p>
-                  <p className="control">
-                    <button className="button insertel smallel" title="inclinatum">
-                      <div style={{ width: '42px', height: '42px', background: '#e0e0e0' }} />
-                    </button>
-                  </p>
-                  <p className="control">
-                    <button className="button insertel smallel" title="custos">
-                      <div style={{ width: '42px', height: '42px', background: '#e0e0e0' }} />
-                    </button>
-                  </p>
-                  <p className="control">
-                    <button className="button insertel smallel" title="C Clef">
-                      <div style={{ width: '42px', height: '42px', background: '#e0e0e0' }} />
-                    </button>
-                  </p>
-                  <p className="control">
-                    <button className="button insertel smallel" title="F Clef">
-                      <div style={{ width: '42px', height: '42px', background: '#e0e0e0' }} />
-                    </button>
-                  </p>
-                  <p className="control">
-                    <button className="button insertel smallel" title="G Clef">
-                      <div style={{ width: '42px', height: '42px', background: '#e0e0e0' }} />
-                    </button>
-                  </p>
-                </>
+                <PrimitiveElements
+                  onElementClick={(elementId) => {
+                    setActiveElementId(elementId);
+                    // TODO: Handle insert mode activation
+                    console.log('Selected element:', elementId);
+                  }}
+                  activeElementId={activeElementId || undefined}
+                />
               )}
               {activeTab === 'groupingTab' && (
                 <>
