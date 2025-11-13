@@ -114,11 +114,45 @@ export const useZoom = (imageWidth?: number, imageHeight?: number) => {
     }
   }, [getViewBox, updateViewBox]);
 
+  const startDrag = useCallback((clientX: number, clientY: number) => {
+    if (!svgRef.current) return null;
+    
+    const group = svgRef.current;
+    const point = group.createSVGPoint();
+    point.x = clientX;
+    point.y = clientY;
+    
+    const matrix = group.getScreenCTM()?.inverse();
+    if (!matrix) return null;
+    
+    return { point, matrix };
+  }, []);
+
+  const dragging = useCallback((
+    startData: { point: DOMPoint; matrix: DOMMatrix } | null,
+    currentX: number,
+    currentY: number
+  ) => {
+    if (!startData || !svgRef.current) return;
+    
+    const group = svgRef.current;
+    const newPoint = group.createSVGPoint();
+    newPoint.x = currentX;
+    newPoint.y = currentY;
+    
+    const newTransform = newPoint.matrixTransform(startData.matrix);
+    const dragTransform = startData.point.matrixTransform(startData.matrix);
+    
+    translate(-newTransform.x + dragTransform.x, -newTransform.y + dragTransform.y);
+  }, [translate]);
+
   return {
     zoom,
     zoomTo,
     resetZoomAndPan,
     translate,
+    startDrag,
+    dragging,
     setSvgRef: (svg: SVGSVGElement | null) => {
       svgRef.current = svg;
     },

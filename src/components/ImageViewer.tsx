@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { useZoom } from '../hooks/useZoom';
 
 /**
@@ -14,6 +14,9 @@ const ImageViewer: React.FC<{ imagePath?: string; onZoomReady?: (zoom: ReturnTyp
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [imageDimensions, setImageDimensions] = useState<{ width: number; height: number } | null>(null);
   const zoom = useZoom(imageDimensions?.width, imageDimensions?.height);
+  const dragStartDataRef = useRef<{ point: DOMPoint; matrix: DOMMatrix } | null>(null);
+  const isDraggingRef = useRef(false);
+  const [isShiftPressed, setIsShiftPressed] = useState(false);
 
   useEffect(() => {
     if (svgRef.current) {
@@ -73,6 +76,7 @@ const ImageViewer: React.FC<{ imagePath?: string; onZoomReady?: (zoom: ReturnTyp
 
     svg.appendChild(bg);
     svg.appendChild(mei);
+    svg.style.cursor = 'default';
     containerRef.current.appendChild(svg);
 
     // Cleanup
@@ -84,7 +88,127 @@ const ImageViewer: React.FC<{ imagePath?: string; onZoomReady?: (zoom: ReturnTyp
     };
   }, [imagePath]);
 
-  return <div ref={containerRef} id="container-content" style={{ width: '100%', height: '100%' }} />;
+  // Drag handlers for panning
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    // Only drag when Shift is held (matching original behavior)
+    if (e.shiftKey && svgRef.current) {
+      e.preventDefault();
+      const startData = zoom.startDrag(e.clientX, e.clientY);
+      if (startData) {
+        dragStartDataRef.current = startData;
+        isDraggingRef.current = true;
+      }
+    }
+  }, [zoom]);
+
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (isDraggingRef.current && dragStartDataRef.current) {
+      e.preventDefault();
+      zoom.dragging(dragStartDataRef.current, e.clientX, e.clientY);
+      // Update the start point for next move
+      if (svgRef.current) {
+        const newPoint = svgRef.current.createSVGPoint();
+        newPoint.x = e.clientX;
+        newPoint.y = e.clientY;
+        dragStartDataRef.current.point = newPoint;
+      }
+    }
+  }, [zoom]);
+
+  const handleMouseUp = useCallback(() => {
+    isDraggingRef.current = false;
+    dragStartDataRef.current = null;
+  }, []);
+
+  // Touch handlers for mobile
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 2 && svgRef.current) {
+      e.preventDefault();
+      const touch = e.touches[0];
+      const startData = zoom.startDrag(touch.clientX, touch.clientY);
+      if (startData) {
+        dragStartDataRef.current = startData;
+        isDraggingRef.current = true;
+      }
+    }
+  }, [zoom]);
+
+  const handleTouchMove = useCallback((e: TouchEvent) => {
+    if (isDraggingRef.current && dragStartDataRef.current && e.touches.length === 2) {
+      e.preventDefault();
+      const touch = e.touches[0];
+      zoom.dragging(dragStartDataRef.current, touch.clientX, touch.clientY);
+      // Update the start point for next move
+      if (svgRef.current) {
+        const newPoint = svgRef.current.createSVGPoint();
+        newPoint.x = touch.clientX;
+        newPoint.y = touch.clientY;
+        dragStartDataRef.current.point = newPoint;
+      }
+    }
+  }, [zoom]);
+
+  const handleTouchEnd = useCallback(() => {
+    isDraggingRef.current = false;
+    dragStartDataRef.current = null;
+  }, []);
+
+  // Set up global mouse event listeners
+  useEffect(() => {
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    document.addEventListener('touchmove', handleTouchMove);
+    document.addEventListener('touchend', handleTouchEnd);
+
+    // Handle Shift key for drag mode
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Shift') {
+        setIsShiftPressed(true);
+        if (svgRef.current) {
+          svgRef.current.style.cursor = 'move';
+        }
+        if (containerRef.current) {
+          containerRef.current.style.cursor = 'move';
+        }
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === 'Shift') {
+        setIsShiftPressed(false);
+        isDraggingRef.current = false;
+        dragStartDataRef.current = null;
+        if (svgRef.current) {
+          svgRef.current.style.cursor = 'default';
+        }
+        if (containerRef.current) {
+          containerRef.current.style.cursor = 'default';
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('keyup', handleKeyUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('touchmove', handleTouchMove);
+      document.removeEventListener('touchend', handleTouchEnd);
+      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [handleMouseMove, handleMouseUp, handleTouchMove, handleTouchEnd]);
+
+  return (
+    <div 
+      ref={containerRef} 
+      id="container-content" 
+      style={{ width: '100%', height: '100%', cursor: isShiftPressed ? 'move' : 'default' }}
+      onMouseDown={handleMouseDown}
+      onTouchStart={handleTouchStart}
+    />
+  );
 };
 
 export default ImageViewer;
