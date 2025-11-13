@@ -15,6 +15,7 @@ export default function DisplayPanel({ zoomHandler }: DisplayPanelProps) {
   const [glyphOpacity, setGlyphOpacity] = useState(100);
   const [lastGlyphOpacity, setLastGlyphOpacity] = useState(100);
   const [imageOpacity, setImageOpacity] = useState(100);
+  const [lastImageOpacity, setLastImageOpacity] = useState(100);
   const [highlightType, setHighlightType] = useState('Off');
   const [isHighlightOpen, setIsHighlightOpen] = useState(false);
 
@@ -64,6 +65,17 @@ export default function DisplayPanel({ zoomHandler }: DisplayPanelProps) {
       element.style.opacity = opacityValue.toString();
     });
   }, [glyphOpacity]);
+
+  // Update background image opacity when slider changes
+  // Based on setBackgroundOpacityControls() in DisplayControls.ts
+  useEffect(() => {
+    const opacityValue = imageOpacity / 100.0;
+    // Target the background image element (id="bgimg" or class="background")
+    const bgImage = document.getElementById('bgimg') as HTMLElement;
+    if (bgImage) {
+      bgImage.style.opacity = opacityValue.toString();
+    }
+  }, [imageOpacity]);
 
   return (
     <div className="panel">
@@ -147,7 +159,19 @@ export default function DisplayPanel({ zoomHandler }: DisplayPanelProps) {
           </a>
 
           <a className="panel-block has-text-centered">
-            <button className="button" onClick={() => setImageOpacity(100)}>
+            <button 
+              className="button" 
+              id="reset-bg-opacity"
+              onClick={() => {
+                // Exact replica of reset button logic from setBackgroundOpacityControls()
+                // Toggle between 100% and the last lower opacity (or 0 if last was >= 95)
+                const lowerOpacity = lastImageOpacity < 95 ? lastImageOpacity / 100.0 : 0;
+                const newOpacity = imageOpacity === 100 ? lowerOpacity : 1;
+                const newOpacityPercent = Math.round(newOpacity * 100);
+                setLastImageOpacity(imageOpacity); // Store current before changing
+                setImageOpacity(newOpacityPercent);
+              }}
+            >
               Image Opacity
             </button>
             <input
@@ -158,7 +182,11 @@ export default function DisplayPanel({ zoomHandler }: DisplayPanelProps) {
               max="100"
               value={imageOpacity}
               type="range"
-              onChange={(e) => setImageOpacity(Number(e.target.value))}
+              onChange={(e) => {
+                const newOpacity = Number(e.target.value);
+                setImageOpacity(newOpacity);
+                setLastImageOpacity(newOpacity);
+              }}
               style={{ flex: 1, margin: '0 10px' }}
             />
             <output id="bgOpacityOutput" htmlFor="bgOpacitySlider">
