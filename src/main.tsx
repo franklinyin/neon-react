@@ -10,7 +10,14 @@ createRoot(document.getElementById('root')!).render(
 );
 
 if (import.meta.env.DEV) {
-  void import('./lib/verovio/smoke').then(({ runVerovioSmoke }) => {
-    void runVerovioSmoke();
-  });
+  const params = new URLSearchParams(window.location.search);
+  if (params.has('phase2a')) {
+    void import('./lib/verovio/phase2a-probe').then(({ runPhase2A }) => {
+      void runPhase2A();
+    });
+  } else {
+    void import('./lib/verovio/smoke').then(({ runVerovioSmoke }) => {
+      void runVerovioSmoke();
+    });
+  }
 }

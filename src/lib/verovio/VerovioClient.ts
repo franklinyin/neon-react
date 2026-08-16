@@ -15,6 +15,7 @@ type WorkerResult = {
   result?: boolean;
   attributes?: Record<string, string>;
   info?: unknown;
+  pageCount?: number;
 };
 
 /**
@@ -83,12 +84,17 @@ export class VerovioClient {
     return response.mei;
   }
 
-  async renderToSVG(): Promise<string> {
-    const response = await this.request('renderToSVG');
+  async renderToSVG(pageNo = 1): Promise<string> {
+    const response = await this.request('renderToSVG', { pageNo });
     if (!response.svg) {
       throw new Error('renderToSVG returned empty SVG');
     }
     return response.svg;
+  }
+
+  async getPageCount(): Promise<number> {
+    const response = await this.request('getPageCount');
+    return Number(response.pageCount || 0);
   }
 
   async edit(editorAction: VerovioEditorAction): Promise<boolean> {

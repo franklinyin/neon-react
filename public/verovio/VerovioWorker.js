@@ -36,8 +36,11 @@ function handleNeonEvent(evt) {
     case 'editInfo':
       result.info = toolkit.editInfo();
       break;
+    case 'getPageCount':
+      result.pageCount = toolkit.getPageCount();
+      break;
     case 'renderToSVG':
-      result.svg = toolkit.renderToSVG(1);
+      result.svg = toolkit.renderToSVG(data.pageNo || 1);
       break;
     default:
       break;

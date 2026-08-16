@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-model href="https://music-encoding.org/schema/5.1/mei-all.rng" type="application/xml" schematypens="http://relaxng.org/ns/structure/1.0"?>
+<?xml-model href="https://music-encoding.org/schema/5.1/mei-all.rng" type="application/xml" schematypens="http://purl.oclc.org/dsdl/schematron"?>
+<mei
+    xmlns="http://www.music-encoding.org/ns/mei" meiversion="5.1">
+    <meiHead xml:id="m-509dc0e7-6cc3-48f0-a131-1a305ed04992">
+        <fileDesc xml:id="m-d416f8da-6846-4a19-9a91-d710cf92da6f">
+            <titleStmt xml:id="m-140b30ae-0921-4da8-84a9-12fa9cccb5a7">
+                <title xml:id="m-4e8c9ed3-b386-4e3b-b62e-2d187ce131e4">MEI Encoding Output (1.0.0)</title>
+            </titleStmt>
+            <pubStmt xml:id="m-7320f3a4-cdec-4972-bdf8-543abc504c0c"/>
+        </fileDesc>
+    </meiHead>
+    <music>
+        <facsimile xml:id="m-63182d12-4cfc-4e11-91b4-85a8001b4675">
+            <surface xml:id="m-0463b0db-9308-45e8-ab2b-6976fa613dce" lrx="3232" lry="2480">
+                <zone xml:id="zone-0000000673109537" ulx="185" uly="816" lrx="3229" lry="1031"/>
+                <zone xml:id="zone-0000001369027437" ulx="180" uly="1452" lrx="3230" lry="1673"/>
+
+                <zone xml:id="zone-0000000092798844" ulx="275" uly="972" lrx="312" lry="998"/>
+                <zone xml:id="zone-0000000092798845" ulx="275" uly="1972" lrx="312" lry="998"/>
+            </surface>
+        </facsimile>
+
+        <body>
+            <mdiv xml:id="m-0fa94f03-6165-4c3b-ae35-e740e865c0c1">
+                <!-- https://book.verovio.org/advanced-topics/transposition.html#illustrated-examples -->
+
+                <score xml:id="m-3b90c995-86f7-4341-bbe8-bdd0b8e3f7b6">
+
+                    <scoreDef xml:id="m-ddc89169-9b9f-40f7-b0ce-407c0fbd2cb9">
+                        <staffGrp xml:id="m-3a7c606d-bd7a-4954-86f1-6c421a4a4a11">
+                            <staffDef n="1" lines="5" clef.shape="G" clef.line="2"/>
+                            <staffDef n="2" lines="5" clef.shape="F" clef.line="4"/>
+                        </staffGrp>
+                    </scoreDef>
+
+                    <section xml:id="m-b75daaeb-a08b-4998-b42b-bce6cbd86d3a">
+                        <staff n="1">
+                            <layer n="1">
+                                <sb n="1" facs="#zone-0000000673109537" xml:id="staff-0000001672035493"/>
+                                <clef xml:id="clef-0000001374857254" facs="#zone-0000000092798844" shape="G" line="2"/>
+
+                            </layer>
+                        </staff>
+
+                        <staff n="2">
+                            <layer n="1">
+                                <sb n="1" facs="#zone-0000001369027437" xml:id="staff-0000001081017002"/>
+                                <clef xml:id="clef-0000001374857255" facs="#zone-0000000092798845" shape="F" line="4"/>
+
+                            </layer>
+                        </staff>
+                    </section>
+
+                </score>
+
+            </mdiv>
+        </body>
+
+    </music>
+</mei>
