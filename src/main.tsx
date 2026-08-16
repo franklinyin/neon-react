@@ -15,7 +15,7 @@ if (import.meta.env.DEV) {
     void import('./lib/verovio/phase2a-probe').then(({ runPhase2A }) => {
       void runPhase2A();
     });
-  } else {
+  } else if (params.has('smoke')) {
     void import('./lib/verovio/smoke').then(({ runVerovioSmoke }) => {
       void runVerovioSmoke();
     });

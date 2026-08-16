@@ -7,10 +7,14 @@ import UndoRedoPanel from './components/UndoRedoPanel';
 import LoadingOverlay from './components/LoadingOverlay';
 import ImageViewer from './components/ImageViewer';
 import { useZoom } from './hooks/useZoom';
+import { useVerovioScore } from './hooks/useVerovioScore';
+
+const CF005_IMAGE = '/samples/CF-005.png';
+const CF005_MEI = '/samples/CF-005.mei';
 
 function App() {
-  const [loading] = useState(false);
   const [zoomHandler, setZoomHandler] = useState<ReturnType<typeof useZoom> | null>(null);
+  const { svg, loading, error } = useVerovioScore(CF005_MEI);
 
   return (
     <>
@@ -19,10 +23,17 @@ function App() {
       <div className="columns">
         <div id="notification-content" style={{ display: 'none' }}></div>
         <div className="column is-two-thirds box" id="container" style={{ height: 'calc(94vh)' }}>
-          <ImageViewer 
-            imagePath="/SK-001.png" 
-            onZoomReady={(zoom) => setZoomHandler(zoom)}
-          />
+          {error ? (
+            <p id="verovio-error" style={{ padding: '1rem', color: '#a00' }}>
+              Failed to render MEI: {error}
+            </p>
+          ) : (
+            <ImageViewer
+              imagePath={CF005_IMAGE}
+              meiSvg={svg}
+              onZoomReady={(zoom) => setZoomHandler(zoom)}
+            />
+          )}
         </div>
         <div className="column is-one-third is-hidden-mobile" id="right-column">
           <div className="panel">

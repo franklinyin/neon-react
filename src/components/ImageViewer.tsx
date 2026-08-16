@@ -6,9 +6,14 @@ import { useZoom } from '../hooks/useZoom';
  * Displays the manuscript image in the container
  * Based on SingleView.ts - creates SVG with background image
  */
-const ImageViewer: React.FC<{ imagePath?: string; onZoomReady?: (zoom: ReturnType<typeof useZoom>) => void }> = ({ 
+const ImageViewer: React.FC<{
+  imagePath?: string;
+  meiSvg?: string | null;
+  onZoomReady?: (zoom: ReturnType<typeof useZoom>) => void;
+}> = ({
   imagePath = '/SK-001.png',
-  onZoomReady 
+  meiSvg = null,
+  onZoomReady,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -17,15 +22,17 @@ const ImageViewer: React.FC<{ imagePath?: string; onZoomReady?: (zoom: ReturnTyp
   const dragStartDataRef = useRef<{ point: DOMPoint; matrix: DOMMatrix } | null>(null);
   const isDraggingRef = useRef(false);
   const [isShiftPressed, setIsShiftPressed] = useState(false);
+  const zoomReadySentRef = useRef(false);
 
   useEffect(() => {
     if (svgRef.current) {
       zoom.setSvgRef(svgRef.current);
     }
-  }, [zoom, svgRef.current, imageDimensions]);
+  }, [zoom, imageDimensions]);
 
   useEffect(() => {
-    if (onZoomReady && imageDimensions) {
+    if (onZoomReady && imageDimensions && !zoomReadySentRef.current) {
+      zoomReadySentRef.current = true;
       onZoomReady(zoom);
     }
   }, [onZoomReady, zoom, imageDimensions]);
@@ -48,8 +55,12 @@ const ImageViewer: React.FC<{ imagePath?: string; onZoomReady?: (zoom: ReturnTyp
     bg.setAttribute('y', '0');
 
     // Load image and set href
+    let cancelled = false;
     const img = new Image();
     img.onload = () => {
+      if (cancelled) {
+        return;
+      }
       bg.setAttributeNS('http://www.w3.org/1999/xlink', 'href', imagePath);
       bg.setAttribute('width', img.width.toString());
       bg.setAttribute('height', img.height.toString());
@@ -81,12 +92,50 @@ const ImageViewer: React.FC<{ imagePath?: string; onZoomReady?: (zoom: ReturnTyp
 
     // Cleanup
     return () => {
+      cancelled = true;
       if (containerRef.current && svg.parentNode) {
         svg.parentNode.removeChild(svg);
       }
       svgRef.current = null;
+      zoomReadySentRef.current = false;
     };
   }, [imagePath]);
+
+  useEffect(() => {
+    const group = svgRef.current;
+    if (!group || !meiSvg) {
+      return;
+    }
+
+    const existing = group.querySelector('#mei_output');
+    if (!existing) {
+      return;
+    }
+
+    const parsed = new DOMParser().parseFromString(meiSvg, 'image/svg+xml');
+    const root = parsed.documentElement;
+    if (root.querySelector('parsererror') || root.localName === 'parsererror') {
+      console.error('Failed to parse Verovio SVG overlay');
+      return;
+    }
+
+    const overlay = document.importNode(root, true);
+    if (!(overlay instanceof SVGSVGElement)) {
+      console.error('Verovio overlay root is not an SVG element');
+      return;
+    }
+    overlay.id = 'mei_output';
+    overlay.classList.add('neon-container', 'active-page');
+    overlay.style.overflow = 'visible';
+
+    const nestedViewBox = overlay.getAttribute('viewBox')
+      || overlay.querySelector('svg[viewBox]')?.getAttribute('viewBox');
+    if (!overlay.getAttribute('viewBox') && nestedViewBox) {
+      overlay.setAttribute('viewBox', nestedViewBox);
+    }
+
+    group.replaceChild(overlay, existing);
+  }, [meiSvg, imageDimensions]);
 
   // Drag handlers for panning
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
