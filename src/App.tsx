@@ -9,7 +9,7 @@ import ImageViewer from './components/ImageViewer';
 import { useZoom } from './hooks/useZoom';
 
 function App() {
-  const [loading, setLoading] = useState(false);
+  const [loading] = useState(false);
   const [zoomHandler, setZoomHandler] = useState<ReturnType<typeof useZoom> | null>(null);
 
   return (

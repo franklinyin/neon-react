@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { Menu, ChevronDown } from 'lucide-react';
 import EditMEIButton from './EditMEIButton';
 
 export default function Navbar() {
