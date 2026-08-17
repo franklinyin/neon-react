@@ -30,7 +30,7 @@ interface PrimitiveElementsProps {
 const IMAGE_SCALE_CONFIG = {
   notehead: 0.5,
   openNotehead: 0.5,
-  quaverFlag: 0.9,
+  quaverFlag: 0.95,
   minimFlag: 0.95,
 } as const;
 
