@@ -182,6 +182,9 @@ export function useVerovioScore(meiUrl: string): VerovioScoreState {
     if (!client) {
       throw new Error('Verovio session is not ready');
     }
+    if (editingRef.current) {
+      throw new Error('Cannot export MEI while an edit is in progress');
+    }
     return client.getMEI();
   }, []);
 

@@ -10,6 +10,7 @@ import { useZoom } from './hooks/useZoom';
 import { useVerovioScore } from './hooks/useVerovioScore';
 import { findNearestStaff, measureRenderedStaffs, yToLoc } from './lib/schenker/geometry';
 import { buildStructuralNoteInsertAction } from './lib/schenker/structuralNote';
+import { createMeiBlob, downloadMei } from './lib/mei/downloadMei';
 
 const CF005_IMAGE = '/samples/CF-005.png';
 const CF005_MEI = '/samples/CF-005.mei';
@@ -31,6 +32,8 @@ function App() {
   const activeInsertToolRef = useRef(activeInsertTool);
   const editingRef = useRef(editing);
   const loadingRef = useRef(loading);
+  const downloadingRef = useRef(false);
+  const [downloading, setDownloading] = useState(false);
   activeInsertToolRef.current = activeInsertTool;
   editingRef.current = editing;
   loadingRef.current = loading;
@@ -93,6 +96,38 @@ function App() {
     [editAndRender, getMEI],
   );
 
+  const handleDownloadMEI = useCallback(async () => {
+    if (loadingRef.current || editingRef.current || downloadingRef.current) {
+      return;
+    }
+    downloadingRef.current = true;
+    setDownloading(true);
+    try {
+      const mei = await getMEI();
+      if (import.meta.env.DEV) {
+        const blob = createMeiBlob(mei);
+        const blobText = await blob.text();
+        const report = {
+          equal: blobText === mei,
+          charLength: mei.length,
+          byteLength: new TextEncoder().encode(mei).length,
+          mimeType: blob.type,
+        };
+        console.log('[phase4] download blob check', report);
+        const w = window as Window & {
+          __PHASE4_DOWNLOAD__?: typeof report & { mei: string };
+        };
+        w.__PHASE4_DOWNLOAD__ = { ...report, mei };
+      }
+      downloadMei(mei, 'CF-005.mei');
+    } catch (err) {
+      console.error('[phase4] Download MEI failed', err);
+    } finally {
+      downloadingRef.current = false;
+      setDownloading(false);
+    }
+  }, [getMEI]);
+
   useEffect(() => {
     if (!import.meta.env.DEV) {
       return;
@@ -113,7 +148,12 @@ function App() {
   return (
     <>
       <LoadingOverlay visible={loading} />
-      <Navbar />
+      <Navbar
+        onDownloadMEI={() => {
+          void handleDownloadMEI();
+        }}
+        downloadDisabled={loading || editing || downloading || Boolean(error)}
+      />
       <div className="columns">
         <div id="notification-content" style={{ display: 'none' }}></div>
         <div className="column is-two-thirds box" id="container" style={{ height: 'calc(94vh)' }}>
