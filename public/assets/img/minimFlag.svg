@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -875 566 1007">
+  <!--
+    Half note as Verovio draws it, then an 8th flag on that stem.
+    Leipzig units: 1 staff space = 250. stemUpSE = (1.26, 0.16) spaces.
+    Up-stem x = stemUpSE.x - stemWidth/2, stroke centered (right edge flush with head).
+    Stem length = 7 units (3.5 spaces) from note center. Flag at stem tip, x - stemWidth/2.
+  -->
+  <g transform="scale(1,-1)" fill="#000">
+    <g id="half-note">
+      <path
+        fill-rule="evenodd"
+        d="M278 64c0 22 -17 39 -43 39c-12 0 -26 -3 -41 -10c-85 -43 -165 -94 -165 -156c5 -25 15 -32 49 -32c67 11 200 95 200 159zM0 -36c0 68 73 174 200 174c66 0 114 -39 114 -97c0 -84 -106 -173 -218 -173c-64 0 -96 32 -96 96z"
+      />
+      <path
+        d="M302.5 40 L302.5 875"
+        fill="none"
+        stroke="#000"
+        stroke-width="25"
+        stroke-linecap="butt"
+      />
+    </g>
+    <g id="flag" transform="translate(290 875)">
+      <path d="M179 -646c15 29 29 55 46 102c18 49 30 108 30 138c0 105 -80 173 -168 200c-18 5 -47 9 -87 16v190h22c8 0 33 -61 71 -95c4 -3 -2 3 61 -56c62 -58 122 -137 122 -241c0 -38 -13 -106 -35 -163c-20 -51 -43 -99 -66 -132c-6 -5 -10 -7 -13 -7s-5 2 -5 5l4 10c1 3 14 25 18 33z" />
+    </g>
+  </g>
+</svg>
