@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { VerovioClient } from '../lib/verovio/VerovioClient';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { VerovioClient, type VerovioEditorAction } from '../lib/verovio/VerovioClient';
 import {
   outlinePreparedMei,
   prepareMeiForVerovio,
@@ -9,7 +9,10 @@ import {
 export type VerovioScoreState = {
   svg: string | null;
   loading: boolean;
+  editing: boolean;
   error: string | null;
+  editAndRender: (action: VerovioEditorAction) => Promise<boolean>;
+  getMEI: () => Promise<string>;
 };
 
 type Phase2BDevReport = {
@@ -29,14 +32,21 @@ type Phase2BDevReport = {
 export function useVerovioScore(meiUrl: string): VerovioScoreState {
   const [svg, setSvg] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const clientRef = useRef<VerovioClient | null>(null);
+  const editingRef = useRef(false);
+  const sessionRef = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
+    const session = sessionRef.current + 1;
+    sessionRef.current = session;
     const client = new VerovioClient();
     clientRef.current = client;
     setLoading(true);
+    setEditing(false);
+    editingRef.current = false;
     setError(null);
     setSvg(null);
 
@@ -124,6 +134,7 @@ export function useVerovioScore(meiUrl: string): VerovioScoreState {
 
     return () => {
       cancelled = true;
+      sessionRef.current = session + 1;
       client.dispose();
       if (clientRef.current === client) {
         clientRef.current = null;
@@ -131,5 +142,48 @@ export function useVerovioScore(meiUrl: string): VerovioScoreState {
     };
   }, [meiUrl]);
 
-  return { svg, loading, error };
+  const editAndRender = useCallback(async (action: VerovioEditorAction): Promise<boolean> => {
+    const client = clientRef.current;
+    const session = sessionRef.current;
+    if (!client || editingRef.current) {
+      return false;
+    }
+    editingRef.current = true;
+    setEditing(true);
+    try {
+      const ok = await client.edit(action);
+      if (!ok) {
+        throw new Error('Verovio edit returned false');
+      }
+      // Do not call renderData() here: that would reload the original MEI
+      // and discard the toolkit's in-memory edit.
+      const svgText = await client.renderToSVG(1);
+      if (sessionRef.current !== session) {
+        return false;
+      }
+      setSvg(svgText);
+      return true;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (!message.includes('disposed')) {
+        console.error('[phase3] editAndRender failed', err);
+      }
+      return false;
+    } finally {
+      editingRef.current = false;
+      if (sessionRef.current === session) {
+        setEditing(false);
+      }
+    }
+  }, []);
+
+  const getMEI = useCallback(async (): Promise<string> => {
+    const client = clientRef.current;
+    if (!client) {
+      throw new Error('Verovio session is not ready');
+    }
+    return client.getMEI();
+  }, []);
+
+  return { svg, loading, editing, error, editAndRender, getMEI };
 }

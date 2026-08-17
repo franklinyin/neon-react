@@ -1,5 +1,60 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useZoom } from '../hooks/useZoom';
+import { measureRenderedStaffs } from '../lib/schenker/geometry';
+
+export type ScorePoint = {
+  x: number;
+  y: number;
+};
+
+function clientToPageCoords(
+  svgGroup: SVGSVGElement,
+  clientX: number,
+  clientY: number,
+): ScorePoint | null {
+  const overlay = svgGroup.querySelector<SVGSVGElement>('.neon-container.active-page');
+  if (!overlay) {
+    return null;
+  }
+  const definitionScale =
+    overlay.querySelector<SVGGraphicsElement>(':scope > .definition-scale') ||
+    overlay.querySelector<SVGGraphicsElement>('.definition-scale');
+  if (!definitionScale) {
+    return null;
+  }
+  const pageMargin = definitionScale.querySelector<SVGGElement>('.page-margin');
+  if (!pageMargin) {
+    return null;
+  }
+  const ctm = pageMargin.getScreenCTM();
+  if (!ctm) {
+    return null;
+  }
+  const pt = new DOMPoint(clientX, clientY).matrixTransform(ctm.inverse());
+  return { x: pt.x, y: pt.y };
+}
+
+function pageToClientCoords(
+  svgGroup: SVGSVGElement,
+  x: number,
+  y: number,
+): ScorePoint | null {
+  const overlay = svgGroup.querySelector<SVGSVGElement>('.neon-container.active-page');
+  const pageMargin = overlay?.querySelector<SVGGElement>('.page-margin');
+  const ctm = pageMargin?.getScreenCTM();
+  if (!ctm) {
+    return null;
+  }
+  const pt = new DOMPoint(x, y).matrixTransform(ctm);
+  return { x: pt.x, y: pt.y };
+}
+
+function pageBounds(svgGroup: SVGSVGElement, fallback?: { width: number; height: number } | null) {
+  const bg = svgGroup.querySelector<SVGImageElement>('#bgimg');
+  const width = Number(bg?.getAttribute('width')) || fallback?.width || 0;
+  const height = Number(bg?.getAttribute('height')) || fallback?.height || 0;
+  return { width, height };
+}
 
 /**
  * ImageViewer Component
@@ -9,10 +64,12 @@ import { useZoom } from '../hooks/useZoom';
 const ImageViewer: React.FC<{
   imagePath?: string;
   meiSvg?: string | null;
+  onScoreClick?: (point: ScorePoint) => void;
   onZoomReady?: (zoom: ReturnType<typeof useZoom>) => void;
 }> = ({
   imagePath = '/SK-001.png',
   meiSvg = null,
+  onScoreClick,
   onZoomReady,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -21,8 +78,11 @@ const ImageViewer: React.FC<{
   const zoom = useZoom(imageDimensions?.width, imageDimensions?.height);
   const dragStartDataRef = useRef<{ point: DOMPoint; matrix: DOMMatrix } | null>(null);
   const isDraggingRef = useRef(false);
+  const didPanRef = useRef(false);
   const [isShiftPressed, setIsShiftPressed] = useState(false);
   const zoomReadySentRef = useRef(false);
+  const onScoreClickRef = useRef(onScoreClick);
+  onScoreClickRef.current = onScoreClick;
 
   useEffect(() => {
     if (svgRef.current) {
@@ -64,14 +124,14 @@ const ImageViewer: React.FC<{
       bg.setAttributeNS('http://www.w3.org/1999/xlink', 'href', imagePath);
       bg.setAttribute('width', img.width.toString());
       bg.setAttribute('height', img.height.toString());
-      
+
       setImageDimensions({ width: img.width, height: img.height });
-      
+
       // Set initial viewBox based on image dimensions
       if (!svg.hasAttribute('viewBox')) {
         svg.setAttribute('viewBox', `0 0 ${img.width} ${img.height}`);
       }
-      
+
       // Set SVG ref after image loads
       if (svgRef.current !== svg) {
         svgRef.current = svg;
@@ -80,7 +140,6 @@ const ImageViewer: React.FC<{
     };
     img.src = imagePath;
 
-    // Create MEI output container (for future MEI overlay)
     const mei = document.createElementNS('http://www.w3.org/2000/svg', 'svg') as SVGSVGElement;
     mei.id = 'mei_output';
     mei.classList.add('neon-container', 'active-page');
@@ -90,7 +149,6 @@ const ImageViewer: React.FC<{
     svg.style.cursor = 'default';
     containerRef.current.appendChild(svg);
 
-    // Cleanup
     return () => {
       cancelled = true;
       if (containerRef.current && svg.parentNode) {
@@ -138,26 +196,101 @@ const ImageViewer: React.FC<{
     }
 
     group.replaceChild(overlay, existing);
+
+    if (import.meta.env.DEV) {
+      const staffs = measureRenderedStaffs(overlay);
+      const viewBox = overlay.getAttribute('viewBox');
+      const pathCount = overlay.querySelectorAll('.staff path').length;
+      const noteCount = overlay.querySelectorAll('.note').length;
+      const xmlId = overlay.getAttribute('xml:id') || overlay.id;
+      console.log('[phase3] overlay mounted', { viewBox, xmlId, pathCount, noteCount, staffs });
+      const w = window as Window & {
+        __PHASE3_STAFFS__?: typeof staffs;
+        __PHASE3_OVERLAY__?: { viewBox: string | null; xmlId: string; pathCount: number; noteCount: number };
+      };
+      w.__PHASE3_STAFFS__ = staffs;
+      w.__PHASE3_OVERLAY__ = { viewBox, xmlId, pathCount, noteCount };
+    }
   }, [meiSvg, imageDimensions]);
 
-  // Drag handlers for panning
+  useEffect(() => {
+    if (!import.meta.env.DEV) {
+      return;
+    }
+    const w = window as Window & {
+      __PHASE3_CLICK_PAGE__?: (x: number, y: number) => boolean;
+    };
+    w.__PHASE3_CLICK_PAGE__ = (x: number, y: number): boolean => {
+      const svg = svgRef.current;
+      const container = containerRef.current;
+      if (!svg || !container) {
+        return false;
+      }
+      const client = pageToClientCoords(svg, x, y);
+      if (!client) {
+        return false;
+      }
+      container.dispatchEvent(
+        new MouseEvent('click', {
+          bubbles: true,
+          cancelable: true,
+          clientX: client.x,
+          clientY: client.y,
+        }),
+      );
+      return true;
+    };
+    return () => {
+      delete w.__PHASE3_CLICK_PAGE__;
+    };
+  }, []);
+
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    // Only drag when Shift is held (matching original behavior)
     if (e.shiftKey && svgRef.current) {
       e.preventDefault();
       const startData = zoom.startDrag(e.clientX, e.clientY);
       if (startData) {
         dragStartDataRef.current = startData;
         isDraggingRef.current = true;
+        didPanRef.current = false;
       }
     }
   }, [zoom]);
 
+  const handleClick = useCallback((e: React.MouseEvent) => {
+    if (!onScoreClickRef.current) {
+      return;
+    }
+    if (e.shiftKey || isDraggingRef.current || didPanRef.current) {
+      didPanRef.current = false;
+      return;
+    }
+    if (e.button !== 0) {
+      return;
+    }
+    const svg = svgRef.current;
+    if (!svg) {
+      return;
+    }
+    const point = clientToPageCoords(svg, e.clientX, e.clientY);
+    if (!point) {
+      return;
+    }
+    const { width, height } = pageBounds(svg, imageDimensions);
+    if (!width || !height) {
+      return;
+    }
+    if (point.x <= 0 || point.x >= width || point.y <= 0 || point.y >= height) {
+      return;
+    }
+    onScoreClickRef.current(point);
+  }, [imageDimensions]);
+
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (isDraggingRef.current && dragStartDataRef.current) {
       e.preventDefault();
+      didPanRef.current = true;
       zoom.dragging(dragStartDataRef.current, e.clientX, e.clientY);
-      // Update the start point for next move
       if (svgRef.current) {
         const newPoint = svgRef.current.createSVGPoint();
         newPoint.x = e.clientX;
@@ -172,7 +305,6 @@ const ImageViewer: React.FC<{
     dragStartDataRef.current = null;
   }, []);
 
-  // Touch handlers for mobile
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     if (e.touches.length === 2 && svgRef.current) {
       e.preventDefault();
@@ -181,6 +313,7 @@ const ImageViewer: React.FC<{
       if (startData) {
         dragStartDataRef.current = startData;
         isDraggingRef.current = true;
+        didPanRef.current = false;
       }
     }
   }, [zoom]);
@@ -188,9 +321,9 @@ const ImageViewer: React.FC<{
   const handleTouchMove = useCallback((e: TouchEvent) => {
     if (isDraggingRef.current && dragStartDataRef.current && e.touches.length === 2) {
       e.preventDefault();
+      didPanRef.current = true;
       const touch = e.touches[0];
       zoom.dragging(dragStartDataRef.current, touch.clientX, touch.clientY);
-      // Update the start point for next move
       if (svgRef.current) {
         const newPoint = svgRef.current.createSVGPoint();
         newPoint.x = touch.clientX;
@@ -205,14 +338,12 @@ const ImageViewer: React.FC<{
     dragStartDataRef.current = null;
   }, []);
 
-  // Set up global mouse event listeners
   useEffect(() => {
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
     document.addEventListener('touchmove', handleTouchMove);
     document.addEventListener('touchend', handleTouchEnd);
 
-    // Handle Shift key for drag mode
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Shift') {
         setIsShiftPressed(true);
@@ -253,15 +384,15 @@ const ImageViewer: React.FC<{
   }, [handleMouseMove, handleMouseUp, handleTouchMove, handleTouchEnd]);
 
   return (
-    <div 
-      ref={containerRef} 
-      id="container-content" 
+    <div
+      ref={containerRef}
+      id="container-content"
       style={{ width: '100%', height: '100%', cursor: isShiftPressed ? 'move' : 'default' }}
       onMouseDown={handleMouseDown}
+      onClick={handleClick}
       onTouchStart={handleTouchStart}
     />
   );
 };
 
 export default ImageViewer;
-

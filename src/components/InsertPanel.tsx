@@ -2,10 +2,23 @@ import { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import PrimitiveElements from './insert/PrimitiveElements';
 
-export default function InsertPanel() {
+export type InsertTool = 'structuralNote' | null;
+
+type InsertPanelProps = {
+  activeInsertTool: InsertTool;
+  onActiveInsertToolChange: (tool: InsertTool) => void;
+};
+
+export default function InsertPanel({
+  activeInsertTool,
+  onActiveInsertToolChange,
+}: InsertPanelProps) {
   const [isOpen, setIsOpen] = useState(true);
   const [activeTab, setActiveTab] = useState<'primitiveTab' | 'groupingTab' | 'systemTab'>('primitiveTab');
-  const [activeElementId, setActiveElementId] = useState<string | null>(null);
+  const [placeholderId, setPlaceholderId] = useState<string | null>(null);
+
+  const activeElementId =
+    activeInsertTool === 'structuralNote' ? 'structuralNote' : placeholderId || undefined;
 
   return (
     <div className="panel">
@@ -43,11 +56,18 @@ export default function InsertPanel() {
               {activeTab === 'primitiveTab' && (
                 <PrimitiveElements
                   onElementClick={(elementId) => {
-                    setActiveElementId(elementId);
-                    // TODO: Handle insert mode activation
+                    if (elementId === 'structuralNote') {
+                      setPlaceholderId(null);
+                      onActiveInsertToolChange(
+                        activeInsertTool === 'structuralNote' ? null : 'structuralNote',
+                      );
+                      return;
+                    }
+                    setPlaceholderId(elementId);
+                    onActiveInsertToolChange(null);
                     console.log('Selected element:', elementId);
                   }}
-                  activeElementId={activeElementId || undefined}
+                  activeElementId={activeElementId}
                 />
               )}
               {activeTab === 'groupingTab' && (
