@@ -36,7 +36,7 @@ const IMAGE_SCALE_CONFIG = {
 
 /**
  * Primitive Elements Component
- * Open Notehead is the Stage-1 Structural Note insert tool.
+ * Open Notehead and Notehead are Stage-1 Structural Note insert tools.
  * Other buttons are visual placeholders.
  */
 const PrimitiveElements: React.FC<PrimitiveElementsProps> = ({

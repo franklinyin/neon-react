@@ -9,6 +9,7 @@ export type StructuralNoteInsertAction = {
       type: 'schenker';
       loc: string;
       'schenker:x': string;
+      dur?: '4';
     };
   };
 };
@@ -18,6 +19,7 @@ export function buildStructuralNoteInsertAction(args: {
   x: number;
   y: number;
   loc: number;
+  filled?: boolean;
 }): StructuralNoteInsertAction {
   return {
     action: 'insert',
@@ -30,6 +32,7 @@ export function buildStructuralNoteInsertAction(args: {
         type: 'schenker',
         loc: String(args.loc),
         'schenker:x': String(Math.round(args.x * 100) / 100),
+        ...(args.filled ? { dur: '4' as const } : {}),
       },
     },
   };

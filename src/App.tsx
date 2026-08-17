@@ -132,7 +132,7 @@ function App() {
         return;
       }
 
-      if (activeInsertToolRef.current === 'openNotehead') {
+      if (activeInsertToolRef.current === 'openNotehead' || activeInsertToolRef.current === 'notehead') {
         const overlay = document.querySelector('#svg_group .neon-container.active-page');
         if (!overlay) {
           console.warn('[phase3] no mounted overlay for insertion');
@@ -153,6 +153,7 @@ function App() {
           x: hit.point.x,
           y: hit.point.y,
           loc,
+          filled: activeInsertToolRef.current === 'notehead',
         });
         if (import.meta.env.DEV) {
           const staffs = measureRenderedStaffs(overlay);
