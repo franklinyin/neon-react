@@ -107,7 +107,7 @@ const ImageViewer: React.FC<{
       return;
     }
 
-    const existing = group.querySelector('#mei_output');
+    const existing = group.querySelector('#mei_output, .neon-container.active-page');
     if (!existing) {
       return;
     }
@@ -124,7 +124,10 @@ const ImageViewer: React.FC<{
       console.error('Verovio overlay root is not an SVG element');
       return;
     }
-    overlay.id = 'mei_output';
+    // Keep Verovio's root xml:id. Its embedded CSS is scoped to that id
+    // (`#xxxx path { stroke: currentColor }`). Overwriting it as mei_output
+    // made staff-line paths compute to stroke:none while clef <use> glyphs
+    // still painted via fill.
     overlay.classList.add('neon-container', 'active-page');
     overlay.style.overflow = 'visible';
 
