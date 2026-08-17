@@ -7,6 +7,54 @@ export type ScorePoint = {
   y: number;
 };
 
+export type ScoreHit = {
+  point: ScorePoint;
+  /**
+   * xml:id of the nearest ancestor `.note` group, or null if the click
+   * missed a note (staff lines, blank page, etc.).
+   *
+   * Stage-1 CF-005 assumption: every rendered `.note` is a Structural Note.
+   * That is not a general future rule.
+   */
+  noteId: string | null;
+  additive: boolean;
+};
+
+const SELECTED_NOTE_CLASS = 'selected-schenker-note';
+
+function noteIdFromEvent(event: React.MouseEvent): string | null {
+  const candidates: Element[] = [];
+  if (event.target instanceof Element) {
+    candidates.push(event.target);
+  }
+  const fromPoint = document.elementFromPoint(event.clientX, event.clientY);
+  if (fromPoint instanceof Element && !candidates.includes(fromPoint)) {
+    candidates.push(fromPoint);
+  }
+  for (const el of candidates) {
+    const note = el.closest('.note');
+    if (note?.id) {
+      return note.id;
+    }
+  }
+  return null;
+}
+
+function applyNoteSelection(overlay: SVGSVGElement, selectedNoteIds: string[]): void {
+  overlay.querySelectorAll(`.note.${SELECTED_NOTE_CLASS}`).forEach((note) => {
+    note.classList.remove(SELECTED_NOTE_CLASS, 'selected');
+  });
+  for (const id of selectedNoteIds) {
+    if (!id) {
+      continue;
+    }
+    const note = overlay.querySelector(`#${CSS.escape(id)}.note`);
+    if (note) {
+      note.classList.add(SELECTED_NOTE_CLASS, 'selected');
+    }
+  }
+}
+
 function clientToPageCoords(
   svgGroup: SVGSVGElement,
   clientX: number,
@@ -64,11 +112,13 @@ function pageBounds(svgGroup: SVGSVGElement, fallback?: { width: number; height:
 const ImageViewer: React.FC<{
   imagePath?: string;
   meiSvg?: string | null;
-  onScoreClick?: (point: ScorePoint) => void;
+  selectedNoteIds?: string[];
+  onScoreClick?: (hit: ScoreHit) => void;
   onZoomReady?: (zoom: ReturnType<typeof useZoom>) => void;
 }> = ({
   imagePath = '/SK-001.png',
   meiSvg = null,
+  selectedNoteIds = [],
   onScoreClick,
   onZoomReady,
 }) => {
@@ -83,6 +133,8 @@ const ImageViewer: React.FC<{
   const zoomReadySentRef = useRef(false);
   const onScoreClickRef = useRef(onScoreClick);
   onScoreClickRef.current = onScoreClick;
+  const selectedNoteIdsRef = useRef(selectedNoteIds);
+  selectedNoteIdsRef.current = selectedNoteIds;
 
   useEffect(() => {
     if (svgRef.current) {
@@ -197,6 +249,8 @@ const ImageViewer: React.FC<{
 
     group.replaceChild(overlay, existing);
 
+    applyNoteSelection(overlay, selectedNoteIdsRef.current);
+
     if (import.meta.env.DEV) {
       const staffs = measureRenderedStaffs(overlay);
       const viewBox = overlay.getAttribute('viewBox');
@@ -212,6 +266,16 @@ const ImageViewer: React.FC<{
       w.__PHASE3_OVERLAY__ = { viewBox, xmlId, pathCount, noteCount };
     }
   }, [meiSvg, imageDimensions]);
+
+  useEffect(() => {
+    const overlay = svgRef.current?.querySelector<SVGSVGElement>(
+      '.neon-container.active-page',
+    );
+    if (!overlay) {
+      return;
+    }
+    applyNoteSelection(overlay, selectedNoteIds);
+  }, [selectedNoteIds]);
 
   useEffect(() => {
     if (!import.meta.env.DEV) {
@@ -283,7 +347,11 @@ const ImageViewer: React.FC<{
     if (point.x <= 0 || point.x >= width || point.y <= 0 || point.y >= height) {
       return;
     }
-    onScoreClickRef.current(point);
+    onScoreClickRef.current({
+      point,
+      noteId: noteIdFromEvent(e),
+      additive: e.metaKey || e.ctrlKey,
+    });
   }, [imageDimensions]);
 
   const handleMouseMove = useCallback((e: MouseEvent) => {

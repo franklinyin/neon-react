@@ -2,11 +2,20 @@ import { useState } from 'react';
 import EditMEIButton from './EditMEIButton';
 
 type NavbarProps = {
+  isEditMode: boolean;
+  onEnterEditMode: () => void;
+  onExitEditMode: () => void;
   onDownloadMEI?: () => void;
   downloadDisabled?: boolean;
 };
 
-export default function Navbar({ onDownloadMEI, downloadDisabled }: NavbarProps) {
+export default function Navbar({
+  isEditMode,
+  onEnterEditMode,
+  onExitEditMode,
+  onDownloadMEI,
+  downloadDisabled,
+}: NavbarProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   return (
@@ -30,7 +39,13 @@ export default function Navbar({ onDownloadMEI, downloadDisabled }: NavbarProps)
 
       <div className={`navbar-menu ${isMenuOpen ? 'is-active' : ''}`} id="navMenu">
         <div className="navbar-start">
-          <EditMEIButton onDownloadMEI={onDownloadMEI} downloadDisabled={downloadDisabled} />
+          <EditMEIButton
+            isEditMode={isEditMode}
+            onEnterEditMode={onEnterEditMode}
+            onExitEditMode={onExitEditMode}
+            onDownloadMEI={onDownloadMEI}
+            downloadDisabled={downloadDisabled}
+          />
         </div>
 
         <div className="navbar-end">

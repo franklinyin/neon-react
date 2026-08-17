@@ -5,11 +5,12 @@ import InsertPanel, { type InsertTool } from './components/InsertPanel';
 import EditPanel from './components/EditPanel';
 import UndoRedoPanel from './components/UndoRedoPanel';
 import LoadingOverlay from './components/LoadingOverlay';
-import ImageViewer, { type ScorePoint } from './components/ImageViewer';
+import ImageViewer, { type ScoreHit, type ScorePoint } from './components/ImageViewer';
 import { useZoom } from './hooks/useZoom';
 import { useVerovioScore } from './hooks/useVerovioScore';
 import { findNearestStaff, measureRenderedStaffs, yToLoc } from './lib/schenker/geometry';
 import { buildStructuralNoteInsertAction } from './lib/schenker/structuralNote';
+import { buildDeleteElementsAction } from './lib/schenker/remove';
 import { createMeiBlob, downloadMei } from './lib/mei/downloadMei';
 
 const CF005_IMAGE = '/samples/CF-005.png';
@@ -25,73 +26,169 @@ type Phase3Debug = {
   setTool: (on: boolean) => void;
 };
 
+function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+  if (target.isContentEditable) {
+    return true;
+  }
+  const tag = target.tagName;
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+}
+
 function App() {
   const [zoomHandler, setZoomHandler] = useState<ReturnType<typeof useZoom> | null>(null);
+  const [isEditMode, setIsEditMode] = useState(false);
   const [activeInsertTool, setActiveInsertTool] = useState<InsertTool>(null);
+  const [selectedNoteIds, setSelectedNoteIds] = useState<string[]>([]);
   const { svg, loading, editing, error, editAndRender, getMEI } = useVerovioScore(CF005_MEI);
+  const isEditModeRef = useRef(isEditMode);
   const activeInsertToolRef = useRef(activeInsertTool);
+  const selectedNoteIdsRef = useRef(selectedNoteIds);
   const editingRef = useRef(editing);
   const loadingRef = useRef(loading);
   const downloadingRef = useRef(false);
   const [downloading, setDownloading] = useState(false);
+  isEditModeRef.current = isEditMode;
   activeInsertToolRef.current = activeInsertTool;
+  selectedNoteIdsRef.current = selectedNoteIds;
   editingRef.current = editing;
   loadingRef.current = loading;
 
+  const enterEditMode = useCallback(() => {
+    setIsEditMode(true);
+  }, []);
+
+  const exitEditMode = useCallback(() => {
+    setIsEditMode(false);
+    setActiveInsertTool(null);
+    setSelectedNoteIds([]);
+  }, []);
+
+  const handleInsertToolChange = useCallback((tool: InsertTool) => {
+    if (!isEditModeRef.current) {
+      return;
+    }
+    setActiveInsertTool(tool);
+    if (tool) {
+      setSelectedNoteIds([]);
+    }
+  }, []);
+
+  const handleDeleteSelected = useCallback(async () => {
+    if (!isEditModeRef.current || activeInsertToolRef.current) {
+      return;
+    }
+    if (loadingRef.current || editingRef.current) {
+      return;
+    }
+    const ids = selectedNoteIdsRef.current;
+    if (ids.length === 0) {
+      return;
+    }
+    const action = buildDeleteElementsAction(ids);
+    if (import.meta.env.DEV) {
+      console.log('[phase5] delete payload', action);
+    }
+    const ok = await editAndRender(action);
+    if (ok) {
+      setSelectedNoteIds([]);
+    }
+  }, [editAndRender]);
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      if (isTypingTarget(event.target)) {
+        return;
+      }
       if (event.key === 'Escape') {
         setActiveInsertTool(null);
+        setSelectedNoteIds([]);
+        return;
       }
+      if (event.key !== 'Delete' && event.key !== 'Backspace') {
+        return;
+      }
+      if (!isEditModeRef.current || activeInsertToolRef.current) {
+        return;
+      }
+      if (loadingRef.current || editingRef.current || selectedNoteIdsRef.current.length === 0) {
+        return;
+      }
+      event.preventDefault();
+      void handleDeleteSelected();
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, []);
+  }, [handleDeleteSelected]);
 
   const handleScoreClick = useCallback(
-    (point: ScorePoint) => {
-      if (activeInsertToolRef.current !== 'structuralNote') {
+    (hit: ScoreHit) => {
+      if (!isEditModeRef.current) {
         return;
       }
       if (loadingRef.current || editingRef.current) {
         return;
       }
-      const overlay = document.querySelector('#svg_group .neon-container.active-page');
-      if (!overlay) {
-        console.warn('[phase3] no mounted overlay for insertion');
+
+      if (activeInsertToolRef.current === 'structuralNote') {
+        const overlay = document.querySelector('#svg_group .neon-container.active-page');
+        if (!overlay) {
+          console.warn('[phase3] no mounted overlay for insertion');
+          return;
+        }
+        const staff = findNearestStaff(overlay, hit.point.x, hit.point.y);
+        if (!staff?.id) {
+          console.warn('[phase3] no staff found for structural note');
+          return;
+        }
+        const loc = yToLoc(hit.point.y, staff);
+        if (!Number.isFinite(loc) || !Number.isFinite(hit.point.x) || !Number.isFinite(hit.point.y)) {
+          console.warn('[phase3] could not determine staff position');
+          return;
+        }
+        const action = buildStructuralNoteInsertAction({
+          staffId: staff.id,
+          x: hit.point.x,
+          y: hit.point.y,
+          loc,
+        });
+        if (import.meta.env.DEV) {
+          const staffs = measureRenderedStaffs(overlay);
+          console.log('[phase3] insert payload', action);
+          const w = window as Window & { __PHASE3__?: Phase3Debug };
+          w.__PHASE3__ = {
+            lastPayload: action,
+            lastStaffId: staff.id,
+            lastLoc: loc,
+            lastPoint: hit.point,
+            staffBboxes: staffs,
+            getMEI,
+            setTool: (on: boolean) => {
+              setIsEditMode(true);
+              setActiveInsertTool(on ? 'structuralNote' : null);
+            },
+          };
+        }
+        void editAndRender(action);
         return;
       }
-      const staff = findNearestStaff(overlay, point.x, point.y);
-      if (!staff?.id) {
-        console.warn('[phase3] no staff found for structural note');
+
+      // Selection mode (default while Edit MEI is active and no insert tool).
+      // Stage-1 CF-005: every rendered .note is a Structural Note.
+      if (!hit.noteId) {
+        setSelectedNoteIds([]);
         return;
       }
-      const loc = yToLoc(point.y, staff);
-      if (!Number.isFinite(loc) || !Number.isFinite(point.x) || !Number.isFinite(point.y)) {
-        console.warn('[phase3] could not determine staff position');
+      const noteId = hit.noteId;
+      if (hit.additive) {
+        setSelectedNoteIds((current) =>
+          current.includes(noteId) ? current.filter((id) => id !== noteId) : [...current, noteId],
+        );
         return;
       }
-      const action = buildStructuralNoteInsertAction({
-        staffId: staff.id,
-        x: point.x,
-        y: point.y,
-        loc,
-      });
-      if (import.meta.env.DEV) {
-        const staffs = measureRenderedStaffs(overlay);
-        console.log('[phase3] insert payload', action);
-        const w = window as Window & { __PHASE3__?: Phase3Debug };
-        w.__PHASE3__ = {
-          lastPayload: action,
-          lastStaffId: staff.id,
-          lastLoc: loc,
-          lastPoint: point,
-          staffBboxes: staffs,
-          getMEI,
-          setTool: (on: boolean) => setActiveInsertTool(on ? 'structuralNote' : null),
-        };
-      }
-      void editAndRender(action);
+      setSelectedNoteIds([noteId]);
     },
     [editAndRender, getMEI],
   );
@@ -141,7 +238,10 @@ function App() {
       lastPoint: previous?.lastPoint ?? null,
       staffBboxes: previous?.staffBboxes ?? [],
       getMEI,
-      setTool: (on: boolean) => setActiveInsertTool(on ? 'structuralNote' : null),
+      setTool: (on: boolean) => {
+        setIsEditMode(true);
+        setActiveInsertTool(on ? 'structuralNote' : null);
+      },
     };
   }, [getMEI]);
 
@@ -149,6 +249,9 @@ function App() {
     <>
       <LoadingOverlay visible={loading} />
       <Navbar
+        isEditMode={isEditMode}
+        onEnterEditMode={enterEditMode}
+        onExitEditMode={exitEditMode}
         onDownloadMEI={() => {
           void handleDownloadMEI();
         }}
@@ -165,6 +268,7 @@ function App() {
             <ImageViewer
               imagePath={CF005_IMAGE}
               meiSvg={svg}
+              selectedNoteIds={selectedNoteIds}
               onScoreClick={handleScoreClick}
               onZoomReady={(zoom) => setZoomHandler(zoom)}
             />
@@ -177,14 +281,22 @@ function App() {
             </div>
             <div id="insert_controls">
               <InsertPanel
+                enabled={isEditMode}
                 activeInsertTool={activeInsertTool}
-                onActiveInsertToolChange={setActiveInsertTool}
+                onActiveInsertToolChange={handleInsertToolChange}
               />
             </div>
             <div id="edit_controls">
-              <EditPanel />
+              <EditPanel
+                enabled={isEditMode}
+                selectedCount={selectedNoteIds.length}
+                onDeleteSelected={() => {
+                  void handleDeleteSelected();
+                }}
+                deleteDisabled={loading || editing || Boolean(activeInsertTool) || Boolean(error)}
+              />
             </div>
-            <div id="undoRedo_controls">
+            <div id="undoRedo_controls" style={isEditMode ? undefined : { opacity: 0.55, pointerEvents: 'none' }}>
               <UndoRedoPanel />
             </div>
           </div>

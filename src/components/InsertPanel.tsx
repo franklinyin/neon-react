@@ -1,15 +1,17 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import PrimitiveElements from './insert/PrimitiveElements';
 
 export type InsertTool = 'structuralNote' | null;
 
 type InsertPanelProps = {
+  enabled: boolean;
   activeInsertTool: InsertTool;
   onActiveInsertToolChange: (tool: InsertTool) => void;
 };
 
 export default function InsertPanel({
+  enabled,
   activeInsertTool,
   onActiveInsertToolChange,
 }: InsertPanelProps) {
@@ -17,17 +19,23 @@ export default function InsertPanel({
   const [activeTab, setActiveTab] = useState<'primitiveTab' | 'groupingTab' | 'systemTab'>('primitiveTab');
   const [placeholderId, setPlaceholderId] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (!enabled) {
+      setPlaceholderId(null);
+    }
+  }, [enabled]);
+
   const activeElementId =
     activeInsertTool === 'structuralNote' ? 'structuralNote' : placeholderId || undefined;
 
   return (
-    <div className="panel">
+    <div className="panel" style={enabled ? undefined : { opacity: 0.55 }}>
       <p className="panel-heading" id="insertMenu" onClick={() => setIsOpen(!isOpen)} style={{ cursor: 'pointer' }}>
         Insert
         <ChevronDown className={`is-pulled-right ${isOpen ? '' : 'rotate-180'}`} size={20} />
       </p>
       {isOpen && (
-        <div id="insertContents" style={{ overflowY: 'hidden' }}>
+        <div id="insertContents" style={{ overflowY: 'hidden', pointerEvents: enabled ? 'auto' : 'none' }}>
           <p className="panel-tabs">
             <a
               id="primitiveTab"
@@ -55,7 +63,11 @@ export default function InsertPanel({
             <div id="insert_data" className="field is-grouped buttons">
               {activeTab === 'primitiveTab' && (
                 <PrimitiveElements
+                  disabled={!enabled}
                   onElementClick={(elementId) => {
+                    if (!enabled) {
+                      return;
+                    }
                     if (elementId === 'structuralNote') {
                       setPlaceholderId(null);
                       onActiveInsertToolChange(
@@ -67,7 +79,7 @@ export default function InsertPanel({
                     onActiveInsertToolChange(null);
                     console.log('Selected element:', elementId);
                   }}
-                  activeElementId={activeElementId}
+                  activeElementId={enabled ? activeElementId : undefined}
                 />
               )}
               {activeTab === 'groupingTab' && (

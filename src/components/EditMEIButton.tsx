@@ -1,25 +1,24 @@
-import React, { useState } from 'react';
+import React from 'react';
 
 type EditMEIButtonProps = {
+  isEditMode: boolean;
+  onEnterEditMode: () => void;
+  onExitEditMode: () => void;
   onDownloadMEI?: () => void;
   downloadDisabled?: boolean;
 };
 
 /**
- * Edit MEI Button Component
- * Exact replica of the original Edit MEI button and File dropdown
- * Based on src/utils/EditControls.ts and src/utils/EditContents.ts
+ * Edit MEI starts edit mode. While editing, this becomes the File dropdown.
+ * Exit Edit restores the Edit MEI button (same as unclicking it).
  */
 const EditMEIButton: React.FC<EditMEIButtonProps> = ({
+  isEditMode,
+  onEnterEditMode,
+  onExitEditMode,
   onDownloadMEI,
   downloadDisabled = false,
 }) => {
-  const [isEditMode, setIsEditMode] = useState(false);
-
-  const handleEditModeClick = () => {
-    setIsEditMode(true);
-  };
-
   const fileMenuItems = [
     { id: 'save', label: 'Save' },
     { id: 'export', label: 'Save and Export to File' },
@@ -34,7 +33,8 @@ const EditMEIButton: React.FC<EditMEIButtonProps> = ({
           <button
             className="button"
             id="edit_mode"
-            onClick={handleEditModeClick}
+            type="button"
+            onClick={onEnterEditMode}
           >
             Edit MEI
           </button>
@@ -64,15 +64,25 @@ const EditMEIButton: React.FC<EditMEIButtonProps> = ({
                     return;
                   }
                   onDownloadMEI?.();
-                  return;
                 }
-                console.log(`Clicked: ${item.id}`);
               }}
             >
               {item.label}
             </a>
           );
         })}
+        <hr className="navbar-divider" />
+        <a
+          id="exit-edit"
+          className="navbar-item"
+          href="#"
+          onClick={(e) => {
+            e.preventDefault();
+            onExitEditMode();
+          }}
+        >
+          Exit Edit
+        </a>
       </div>
     </div>
   );

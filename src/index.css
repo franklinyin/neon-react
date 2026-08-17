@@ -135,6 +135,25 @@ button:focus {
     fill: #d00;
 }
 
+/*
+ * Presentation-only Structural Note highlight. Verovio glyphs follow
+ * `color` / `currentColor`. Do not put this class on staff or clef groups.
+ */
+.note.selected-schenker-note,
+.note.selected-schenker-note use {
+    color: #d00;
+    fill: currentColor;
+}
+
+/*
+ * Stage-1 notes are small <use> glyphs sitting on staff-line paths.
+ * bounding-box keeps the click on the note group instead of the staff
+ * line underneath, without changing layout.
+ */
+#svg_group .note {
+    pointer-events: bounding-box;
+}
+
 .diva-wrapper {
     min-height: inherit;
     height: 100%;

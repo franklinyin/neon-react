@@ -11,6 +11,7 @@ interface PrimitiveElement {
 interface PrimitiveElementsProps {
   onElementClick?: (elementId: string) => void;
   activeElementId?: string;
+  disabled?: boolean;
 }
 
 /**
@@ -39,6 +40,7 @@ const IMAGE_SCALE_CONFIG = {
 const PrimitiveElements: React.FC<PrimitiveElementsProps> = ({
   onElementClick,
   activeElementId,
+  disabled = false,
 }) => {
   const elements: PrimitiveElement[] = [
     {
@@ -84,7 +86,13 @@ const PrimitiveElements: React.FC<PrimitiveElementsProps> = ({
               aria-label={element.ariaLabel || element.label}
               aria-pressed={isActive}
               title={element.label}
-              onClick={() => onElementClick?.(element.id)}
+              disabled={disabled}
+              onClick={() => {
+                if (disabled) {
+                  return;
+                }
+                onElementClick?.(element.id);
+              }}
               style={{
                 overflow: 'hidden',
                 display: 'flex',
