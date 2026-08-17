@@ -31,6 +31,7 @@ const IMAGE_SCALE_CONFIG = {
   notehead: 0.5,
   openNotehead: 0.5,
   quaverFlag: 0.9,
+  minimFlag: 0.95,
 } as const;
 
 /**
@@ -60,6 +61,12 @@ const PrimitiveElements: React.FC<PrimitiveElementsProps> = ({
       label: 'Quaver Flag',
       imagePath: '/assets/img/quaverFlag.svg',
       ariaLabel: 'quaver flag',
+    },
+    {
+      id: 'minimFlag',
+      label: 'Minim with flag',
+      imagePath: '/assets/img/minimFlag.svg',
+      ariaLabel: 'minim with flag',
     },
     {
       id: 'structuralNote',
