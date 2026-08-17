@@ -406,7 +406,7 @@ export async function runPhase5(): Promise<void> {
       verb: 'delete',
       neonNeumeVerb: 'remove',
       setFocusNote:
-        'EditorToolkitShared calls SetFocus() for every non-insert/context/properties action, including delete',
+        'Schenker insert and delete skip EditorToolkitShared SetFocus(); other actions still run it',
       layoutDeltas: {
         upperStaffLry: {
           before: before.staffs[0]?.lry,
