@@ -36,7 +36,8 @@ const IMAGE_SCALE_CONFIG = {
 
 /**
  * Primitive Elements Component
- * Displays notehead, openNotehead, quaverFlag placeholders, and Structural Note.
+ * Open Notehead is the Stage-1 Structural Note insert tool.
+ * Other buttons are visual placeholders.
  */
 const PrimitiveElements: React.FC<PrimitiveElementsProps> = ({
   onElementClick,
@@ -67,12 +68,6 @@ const PrimitiveElements: React.FC<PrimitiveElementsProps> = ({
       label: 'Minim with flag',
       imagePath: '/assets/img/minimFlag.svg',
       ariaLabel: 'minim with flag',
-    },
-    {
-      id: 'structuralNote',
-      label: 'Structural Note (Schenker)',
-      glyph: '○',
-      ariaLabel: 'Structural Note',
     },
   ];
 

@@ -132,7 +132,7 @@ function App() {
         return;
       }
 
-      if (activeInsertToolRef.current === 'structuralNote') {
+      if (activeInsertToolRef.current === 'openNotehead') {
         const overlay = document.querySelector('#svg_group .neon-container.active-page');
         if (!overlay) {
           console.warn('[phase3] no mounted overlay for insertion');
@@ -167,7 +167,7 @@ function App() {
             getMEI,
             setTool: (on: boolean) => {
               setIsEditMode(true);
-              setActiveInsertTool(on ? 'structuralNote' : null);
+              setActiveInsertTool(on ? 'openNotehead' : null);
             },
           };
         }
@@ -240,7 +240,7 @@ function App() {
       getMEI,
       setTool: (on: boolean) => {
         setIsEditMode(true);
-        setActiveInsertTool(on ? 'structuralNote' : null);
+        setActiveInsertTool(on ? 'openNotehead' : null);
       },
     };
   }, [getMEI]);
