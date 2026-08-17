@@ -9,7 +9,7 @@ import ImageViewer, { type ScoreHit, type ScorePoint } from './components/ImageV
 import { useZoom } from './hooks/useZoom';
 import { useVerovioScore } from './hooks/useVerovioScore';
 import { findNearestStaff, measureRenderedStaffs, yToLoc } from './lib/schenker/geometry';
-import { buildStructuralNoteInsertAction } from './lib/schenker/structuralNote';
+import { buildStructuralNoteInsertAction, type StructuralNoteKind } from './lib/schenker/structuralNote';
 import { buildDeleteElementsAction } from './lib/schenker/remove';
 import { createMeiBlob, downloadMei } from './lib/mei/downloadMei';
 
@@ -132,7 +132,8 @@ function App() {
         return;
       }
 
-      if (activeInsertToolRef.current === 'openNotehead' || activeInsertToolRef.current === 'notehead') {
+      const insertTool = activeInsertToolRef.current;
+      if (insertTool) {
         const overlay = document.querySelector('#svg_group .neon-container.active-page');
         if (!overlay) {
           console.warn('[phase3] no mounted overlay for insertion');
@@ -148,12 +149,18 @@ function App() {
           console.warn('[phase3] could not determine staff position');
           return;
         }
+        const kindByTool: Record<Exclude<InsertTool, null>, StructuralNoteKind> = {
+          openNotehead: 'open',
+          notehead: 'filled',
+          quaverFlag: 'quaver',
+          minimFlag: 'minimFlag',
+        };
         const action = buildStructuralNoteInsertAction({
           staffId: staff.id,
           x: hit.point.x,
           y: hit.point.y,
           loc,
-          filled: activeInsertToolRef.current === 'notehead',
+          kind: kindByTool[insertTool],
         });
         if (import.meta.env.DEV) {
           const staffs = measureRenderedStaffs(overlay);

@@ -1,3 +1,5 @@
+export type StructuralNoteKind = 'open' | 'filled' | 'quaver' | 'minimFlag';
+
 export type StructuralNoteInsertAction = {
   action: 'insert';
   param: {
@@ -9,7 +11,8 @@ export type StructuralNoteInsertAction = {
       type: 'schenker';
       loc: string;
       'schenker:x': string;
-      dur?: '4';
+      dur?: '4' | '8';
+      'head.fill'?: 'void';
     };
   };
 };
@@ -19,8 +22,10 @@ export function buildStructuralNoteInsertAction(args: {
   x: number;
   y: number;
   loc: number;
+  kind?: StructuralNoteKind;
   filled?: boolean;
 }): StructuralNoteInsertAction {
+  const kind: StructuralNoteKind = args.kind ?? (args.filled ? 'filled' : 'open');
   return {
     action: 'insert',
     param: {
@@ -32,7 +37,9 @@ export function buildStructuralNoteInsertAction(args: {
         type: 'schenker',
         loc: String(args.loc),
         'schenker:x': String(Math.round(args.x * 100) / 100),
-        ...(args.filled ? { dur: '4' as const } : {}),
+        ...(kind === 'filled' ? { dur: '4' as const } : {}),
+        ...(kind === 'quaver' ? { dur: '8' as const } : {}),
+        ...(kind === 'minimFlag' ? { dur: '8' as const, 'head.fill': 'void' as const } : {}),
       },
     },
   };

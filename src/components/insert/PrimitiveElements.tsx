@@ -36,8 +36,7 @@ const IMAGE_SCALE_CONFIG = {
 
 /**
  * Primitive Elements Component
- * Open Notehead and Notehead are Stage-1 Structural Note insert tools.
- * Other buttons are visual placeholders.
+ * Open Notehead, Notehead, Quaver Flag, and Minim with flag are Stage-1 insert tools.
  */
 const PrimitiveElements: React.FC<PrimitiveElementsProps> = ({
   onElementClick,

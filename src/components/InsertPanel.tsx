@@ -2,7 +2,18 @@ import { useEffect, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import PrimitiveElements from './insert/PrimitiveElements';
 
-export type InsertTool = 'openNotehead' | 'notehead' | null;
+export type InsertTool = 'openNotehead' | 'notehead' | 'quaverFlag' | 'minimFlag' | null;
+
+const INSERT_TOOLS: ReadonlyArray<Exclude<InsertTool, null>> = [
+  'openNotehead',
+  'notehead',
+  'quaverFlag',
+  'minimFlag',
+];
+
+function isInsertTool(id: string): id is Exclude<InsertTool, null> {
+  return (INSERT_TOOLS as ReadonlyArray<string>).includes(id);
+}
 
 type InsertPanelProps = {
   enabled: boolean;
@@ -67,7 +78,7 @@ export default function InsertPanel({
                     if (!enabled) {
                       return;
                     }
-                    if (elementId === 'openNotehead' || elementId === 'notehead') {
+                    if (isInsertTool(elementId)) {
                       setPlaceholderId(null);
                       onActiveInsertToolChange(activeInsertTool === elementId ? null : elementId);
                       return;
