@@ -102,6 +102,16 @@ export class VerovioClient {
     return Boolean(response.result);
   }
 
+  async getElementAttr(elementId: string): Promise<Record<string, string>> {
+    const response = await this.request('getElementAttr', { elementId });
+    return response.attributes || {};
+  }
+
+  async editInfo(): Promise<unknown> {
+    const response = await this.request('editInfo');
+    return response.info;
+  }
+
   dispose(): void {
     if (this.disposed) {
       return;

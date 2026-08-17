@@ -11,7 +11,11 @@ createRoot(document.getElementById('root')!).render(
 
 if (import.meta.env.DEV) {
   const params = new URLSearchParams(window.location.search);
-  if (params.has('phase4')) {
+  if (params.has('phase5')) {
+    void import('./lib/verovio/phase5-probe').then(({ runPhase5 }) => {
+      void runPhase5();
+    });
+  } else if (params.has('phase4')) {
     void import('./lib/verovio/phase4-probe').then(({ runPhase4 }) => {
       void runPhase4();
     });
