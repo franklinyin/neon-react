@@ -6,6 +6,9 @@ type EditPanelProps = {
   selectedCount: number;
   onDeleteSelected: () => void;
   deleteDisabled?: boolean;
+  beamEnabled?: boolean;
+  onBeamSelected?: () => void;
+  beamDisabled?: boolean;
 };
 
 export default function EditPanel({
@@ -13,10 +16,14 @@ export default function EditPanel({
   selectedCount,
   onDeleteSelected,
   deleteDisabled = false,
+  beamEnabled = false,
+  onBeamSelected,
+  beamDisabled = false,
 }: EditPanelProps) {
   const [isOpen, setIsOpen] = useState(true);
   const [selectBy, setSelectBy] = useState<'syllable' | 'neume' | 'nc' | 'staff'>('syllable');
   const canDelete = enabled && selectedCount > 0 && !deleteDisabled;
+  const canBeam = enabled && beamEnabled && !beamDisabled;
 
   return (
     <div className="panel" style={enabled ? undefined : { opacity: 0.55 }}>
@@ -81,6 +88,17 @@ export default function EditPanel({
                 onClick={onDeleteSelected}
               >
                 Delete Selected{selectedCount > 0 ? ` (${selectedCount})` : ''}
+              </button>
+            </p>
+            <p className="control">
+              <button
+                type="button"
+                className="button"
+                id="beamSelected"
+                disabled={!canBeam}
+                onClick={onBeamSelected}
+              >
+                Beam
               </button>
             </p>
             <a id="moreEdit" className="panel-block is-invisible"></a>

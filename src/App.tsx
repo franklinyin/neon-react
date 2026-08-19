@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Navbar from './components/Navbar';
 import DisplayPanel from './components/DisplayPanel';
 import InsertPanel, { type InsertTool } from './components/InsertPanel';
@@ -11,6 +11,7 @@ import { useVerovioScore } from './hooks/useVerovioScore';
 import { findNearestStaff, measureRenderedStaffs, yToLoc } from './lib/schenker/geometry';
 import { buildStructuralNoteInsertAction, type StructuralNoteKind } from './lib/schenker/structuralNote';
 import { buildDeleteElementsAction } from './lib/schenker/remove';
+import { activeScoreOverlay, buildBeamNotesAction, canBeamSelection } from './lib/schenker/beam';
 import { createMeiBlob, downloadMei } from './lib/mei/downloadMei';
 
 const CF005_IMAGE = '/samples/CF-005.png';
@@ -96,6 +97,34 @@ function App() {
       setSelectedNoteIds([]);
     }
   }, [editAndRender]);
+
+  const handleBeamSelected = useCallback(async () => {
+    if (!isEditModeRef.current || activeInsertToolRef.current) {
+      return;
+    }
+    if (loadingRef.current || editingRef.current) {
+      return;
+    }
+    const ids = selectedNoteIdsRef.current;
+    if (!canBeamSelection(activeScoreOverlay(), ids)) {
+      return;
+    }
+    const action = buildBeamNotesAction(ids);
+    if (import.meta.env.DEV) {
+      console.log('[phase5] beam payload', action);
+    }
+    const ok = await editAndRender(action);
+    if (ok) {
+      setSelectedNoteIds([]);
+    }
+  }, [editAndRender]);
+
+  const beamEnabled = useMemo(() => {
+    if (!isEditMode || activeInsertTool) {
+      return false;
+    }
+    return canBeamSelection(activeScoreOverlay(), selectedNoteIds);
+  }, [isEditMode, activeInsertTool, selectedNoteIds, svg]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -304,6 +333,11 @@ function App() {
                   void handleDeleteSelected();
                 }}
                 deleteDisabled={loading || editing || Boolean(activeInsertTool) || Boolean(error)}
+                beamEnabled={beamEnabled}
+                onBeamSelected={() => {
+                  void handleBeamSelected();
+                }}
+                beamDisabled={loading || editing || Boolean(activeInsertTool) || Boolean(error)}
               />
             </div>
             <div id="undoRedo_controls" style={isEditMode ? undefined : { opacity: 0.55, pointerEvents: 'none' }}>
