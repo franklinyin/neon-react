@@ -152,7 +152,9 @@ function App() {
         const kindByTool: Record<Exclude<InsertTool, null>, StructuralNoteKind> = {
           openNotehead: 'open',
           notehead: 'filled',
-          quaverFlag: 'quaver',
+          quaver: 'quaver',
+          minim: 'minim',
+          quaverFlag: 'quaverFlag',
           minimFlag: 'minimFlag',
         };
         const action = buildStructuralNoteInsertAction({

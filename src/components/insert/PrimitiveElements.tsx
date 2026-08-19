@@ -30,13 +30,15 @@ interface PrimitiveElementsProps {
 const IMAGE_SCALE_CONFIG = {
   notehead: 0.5,
   openNotehead: 0.5,
+  quaver: 0.95,
+  minim: 0.95,
   quaverFlag: 0.95,
   minimFlag: 0.95,
 } as const;
 
 /**
  * Primitive Elements Component
- * Open Notehead, Notehead, Quaver Flag, and Minim with flag are Stage-1 insert tools.
+ * Notehead, Open Notehead, Quaver, Minim, Quaver Flag, and Minim with flag are Stage-1 insert tools.
  */
 const PrimitiveElements: React.FC<PrimitiveElementsProps> = ({
   onElementClick,
@@ -55,6 +57,18 @@ const PrimitiveElements: React.FC<PrimitiveElementsProps> = ({
       label: 'Open Notehead',
       imagePath: '/assets/img/openNotehead.svg',
       ariaLabel: 'open notehead',
+    },
+    {
+      id: 'quaver',
+      label: 'Quaver',
+      imagePath: '/assets/img/quaver.svg',
+      ariaLabel: 'quaver',
+    },
+    {
+      id: 'minim',
+      label: 'Minim',
+      imagePath: '/assets/img/minim.svg',
+      ariaLabel: 'minim',
     },
     {
       id: 'quaverFlag',

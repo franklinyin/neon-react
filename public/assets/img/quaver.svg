@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -875 320 1007">
+  <!--
+    Quarter note as Verovio draws it (no flag).
+    Leipzig E0A4 noteheadBlack. 1 staff space = 250. stemUpSE = (1.26, 0.16) spaces.
+    Up-stem x = stemUpSE.x - stemWidth/2, stroke centered (right edge flush with head).
+    Stem length = 7 units (3.5 spaces) from note center.
+  -->
+  <g transform="scale(1,-1)" fill="#000">
+    <path
+      d="M0 -39c0 68 73 172 200 172c66 0 114 -37 114 -95c0 -84 -106 -171 -218 -171c-64 0 -96 30 -96 94z"
+    />
+    <path
+      d="M302.5 40 L302.5 875"
+      fill="none"
+      stroke="#000"
+      stroke-width="25"
+      stroke-linecap="butt"
+    />
+  </g>
+</svg>

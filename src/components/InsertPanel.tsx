@@ -2,11 +2,20 @@ import { useEffect, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import PrimitiveElements from './insert/PrimitiveElements';
 
-export type InsertTool = 'openNotehead' | 'notehead' | 'quaverFlag' | 'minimFlag' | null;
+export type InsertTool =
+  | 'openNotehead'
+  | 'notehead'
+  | 'quaver'
+  | 'minim'
+  | 'quaverFlag'
+  | 'minimFlag'
+  | null;
 
 const INSERT_TOOLS: ReadonlyArray<Exclude<InsertTool, null>> = [
   'openNotehead',
   'notehead',
+  'quaver',
+  'minim',
   'quaverFlag',
   'minimFlag',
 ];
