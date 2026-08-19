@@ -153,6 +153,40 @@ button:focus {
     stroke: #d00;
 }
 
+.slur.selected-schenker-slur,
+.slur.selected-schenker-slur path {
+    color: #d00;
+    fill: #d00;
+    stroke: #d00;
+}
+
+.schenker-slur-handle {
+    fill: #fff;
+    stroke: #06c;
+    stroke-width: 20;
+    pointer-events: all;
+    cursor: grab;
+}
+
+.schenker-slur-handle:active {
+    cursor: grabbing;
+}
+
+.schenker-slur-handle-label {
+    fill: #06c;
+    font-size: 120px;
+    font-family: sans-serif;
+    pointer-events: none;
+    user-select: none;
+}
+
+.schenker-slur-handle-line {
+    stroke: #06c;
+    stroke-width: 12;
+    stroke-dasharray: 40 40;
+    pointer-events: none;
+}
+
 /*
  * Stage-1 notes are small <use> glyphs sitting on staff-line paths.
  * bounding-box keeps the click on the note group instead of the staff

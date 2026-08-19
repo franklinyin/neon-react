@@ -19,13 +19,21 @@ export type ScoreHit = {
   noteId: string | null;
   /** xml:id of the nearest `.beam` when the beam bar itself is clicked. */
   beamId: string | null;
+  /** xml:id of the nearest `.slur` when the slur path is clicked. */
+  slurId: string | null;
   additive: boolean;
 };
 
 const SELECTED_NOTE_CLASS = 'selected-schenker-note';
 const SELECTED_BEAM_CLASS = 'selected-schenker-beam';
+const SELECTED_SLUR_CLASS = 'selected-schenker-slur';
+const SLUR_HANDLES_LAYER_ID = 'schenker-slur-handles';
 
-function selectionFromEvent(event: React.MouseEvent): { noteId: string | null; beamId: string | null } {
+function selectionFromEvent(event: React.MouseEvent): {
+  noteId: string | null;
+  beamId: string | null;
+  slurId: string | null;
+} {
   const candidates: Element[] = [];
   if (event.target instanceof Element) {
     candidates.push(event.target);
@@ -35,16 +43,20 @@ function selectionFromEvent(event: React.MouseEvent): { noteId: string | null; b
     candidates.push(fromPoint);
   }
   for (const el of candidates) {
+    const slur = el.closest('.slur');
+    if (slur?.id && (el.tagName === 'path' || el.closest('.slur') === slur)) {
+      return { noteId: null, beamId: null, slurId: slur.id };
+    }
     const note = el.closest('.note');
     if (note?.id) {
-      return { noteId: note.id, beamId: null };
+      return { noteId: note.id, beamId: null, slurId: null };
     }
     const beam = el.closest('.beam');
     if (beam?.id) {
-      return { noteId: null, beamId: beam.id };
+      return { noteId: null, beamId: beam.id, slurId: null };
     }
   }
-  return { noteId: null, beamId: null };
+  return { noteId: null, beamId: null, slurId: null };
 }
 
 function applyNoteSelection(overlay: SVGSVGElement, selectedNoteIds: string[]): void {
@@ -73,6 +85,78 @@ function applyBeamSelection(overlay: SVGSVGElement, selectedBeamId: string | nul
   if (beam) {
     beam.classList.add(SELECTED_BEAM_CLASS, 'selected');
   }
+}
+
+function applySlurSelection(overlay: SVGSVGElement, selectedSlurId: string | null): void {
+  overlay.querySelectorAll(`.slur.${SELECTED_SLUR_CLASS}`).forEach((slur) => {
+    slur.classList.remove(SELECTED_SLUR_CLASS, 'selected');
+  });
+  if (!selectedSlurId) {
+    return;
+  }
+  const slur = overlay.querySelector(`#${CSS.escape(selectedSlurId)}.slur`);
+  if (slur) {
+    slur.classList.add(SELECTED_SLUR_CLASS, 'selected');
+  }
+}
+
+type SlurHandlePoints = [ScorePoint, ScorePoint, ScorePoint, ScorePoint];
+
+function removeSlurHandles(overlay: SVGSVGElement): void {
+  overlay.querySelector(`#${SLUR_HANDLES_LAYER_ID}`)?.remove();
+}
+
+function renderSlurHandles(
+  overlay: SVGSVGElement,
+  points: SlurHandlePoints,
+  onHandlePointerDown: (index: number, event: PointerEvent) => void,
+): void {
+  removeSlurHandles(overlay);
+  const pageMargin = overlay.querySelector<SVGGElement>('.page-margin');
+  if (!pageMargin) {
+    return;
+  }
+
+  const layer = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  layer.id = SLUR_HANDLES_LAYER_ID;
+
+  const addLine = (from: ScorePoint, to: ScorePoint) => {
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', String(from.x));
+    line.setAttribute('y1', String(from.y));
+    line.setAttribute('x2', String(to.x));
+    line.setAttribute('y2', String(to.y));
+    line.classList.add('schenker-slur-handle-line');
+    layer.appendChild(line);
+  };
+
+  addLine(points[0], points[1]);
+  addLine(points[2], points[3]);
+
+  const labels = ['p0', 'p1', 'p2', 'p3'];
+  const radius = 40;
+  points.forEach((point, index) => {
+    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    circle.setAttribute('cx', String(point.x));
+    circle.setAttribute('cy', String(point.y));
+    circle.setAttribute('r', String(radius));
+    circle.classList.add('schenker-slur-handle');
+    circle.dataset.handleIndex = String(index);
+    circle.addEventListener('pointerdown', (event) => {
+      event.stopPropagation();
+      onHandlePointerDown(index, event);
+    });
+    layer.appendChild(circle);
+
+    const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    label.setAttribute('x', String(point.x + radius + 20));
+    label.setAttribute('y', String(point.y - radius - 10));
+    label.classList.add('schenker-slur-handle-label');
+    label.textContent = labels[index];
+    layer.appendChild(label);
+  });
+
+  pageMargin.appendChild(layer);
 }
 
 function clientToPageCoords(
@@ -134,14 +218,20 @@ const ImageViewer: React.FC<{
   meiSvg?: string | null;
   selectedNoteIds?: string[];
   selectedBeamId?: string | null;
+  selectedSlurId?: string | null;
+  slurControlPoints?: SlurHandlePoints | null;
   onScoreClick?: (hit: ScoreHit) => void;
+  onSlurBezierCommit?: (slurId: string, points: SlurHandlePoints) => void;
   onZoomReady?: (zoom: ReturnType<typeof useZoom>) => void;
 }> = ({
   imagePath = '/SK-001.png',
   meiSvg = null,
   selectedNoteIds = [],
   selectedBeamId = null,
+  selectedSlurId = null,
+  slurControlPoints = null,
   onScoreClick,
+  onSlurBezierCommit,
   onZoomReady,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -159,6 +249,18 @@ const ImageViewer: React.FC<{
   selectedNoteIdsRef.current = selectedNoteIds;
   const selectedBeamIdRef = useRef(selectedBeamId);
   selectedBeamIdRef.current = selectedBeamId;
+  const selectedSlurIdRef = useRef(selectedSlurId);
+  selectedSlurIdRef.current = selectedSlurId;
+  const slurControlPointsRef = useRef(slurControlPoints);
+  slurControlPointsRef.current = slurControlPoints;
+  const onSlurBezierCommitRef = useRef(onSlurBezierCommit);
+  onSlurBezierCommitRef.current = onSlurBezierCommit;
+  const slurDragRef = useRef<{
+    slurId: string;
+    handleIndex: number;
+    points: SlurHandlePoints;
+  } | null>(null);
+  const [slurPreviewPoints, setSlurPreviewPoints] = useState<SlurHandlePoints | null>(null);
 
   useEffect(() => {
     if (svgRef.current) {
@@ -275,6 +377,7 @@ const ImageViewer: React.FC<{
 
     applyNoteSelection(overlay, selectedNoteIdsRef.current);
     applyBeamSelection(overlay, selectedBeamIdRef.current);
+    applySlurSelection(overlay, selectedSlurIdRef.current);
 
     if (import.meta.env.DEV) {
       const staffs = measureRenderedStaffs(overlay);
@@ -301,7 +404,44 @@ const ImageViewer: React.FC<{
     }
     applyNoteSelection(overlay, selectedNoteIds);
     applyBeamSelection(overlay, selectedBeamId);
-  }, [selectedNoteIds, selectedBeamId]);
+    applySlurSelection(overlay, selectedSlurId);
+  }, [selectedNoteIds, selectedBeamId, selectedSlurId]);
+
+  const syncSlurHandleLayer = useCallback(() => {
+    const overlay = svgRef.current?.querySelector<SVGSVGElement>('.neon-container.active-page');
+    if (!overlay) {
+      return;
+    }
+    const points = slurPreviewPoints ?? slurControlPointsRef.current;
+    if (!selectedSlurIdRef.current || !points) {
+      removeSlurHandles(overlay);
+      return;
+    }
+    renderSlurHandles(overlay, points, (handleIndex, event) => {
+      if (!selectedSlurIdRef.current || !points) {
+        return;
+      }
+      event.preventDefault();
+      const svg = svgRef.current;
+      if (!svg) {
+        return;
+      }
+      slurDragRef.current = {
+        slurId: selectedSlurIdRef.current,
+        handleIndex,
+        points: points.map((point) => ({ ...point })) as SlurHandlePoints,
+      };
+      (event.currentTarget as Element).setPointerCapture(event.pointerId);
+    });
+  }, [slurPreviewPoints]);
+
+  useEffect(() => {
+    syncSlurHandleLayer();
+  }, [syncSlurHandleLayer, selectedSlurId, slurControlPoints, slurPreviewPoints, meiSvg]);
+
+  useEffect(() => {
+    setSlurPreviewPoints(null);
+  }, [selectedSlurId, meiSvg]);
 
   useEffect(() => {
     if (!import.meta.env.DEV) {
@@ -358,6 +498,9 @@ const ImageViewer: React.FC<{
     if (e.button !== 0) {
       return;
     }
+    if (e.target instanceof Element && e.target.closest('.schenker-slur-handle')) {
+      return;
+    }
     const svg = svgRef.current;
     if (!svg) {
       return;
@@ -378,9 +521,49 @@ const ImageViewer: React.FC<{
       point,
       noteId: selection.noteId,
       beamId: selection.beamId,
+      slurId: selection.slurId,
       additive: e.metaKey || e.ctrlKey,
     });
   }, [imageDimensions]);
+
+  const handleSlurPointerMove = useCallback((event: PointerEvent) => {
+    const drag = slurDragRef.current;
+    const svg = svgRef.current;
+    if (!drag || !svg) {
+      return;
+    }
+    const point = clientToPageCoords(svg, event.clientX, event.clientY);
+    if (!point) {
+      return;
+    }
+    event.preventDefault();
+    const next = drag.points.map((existing, index) =>
+      index === drag.handleIndex ? point : existing,
+    ) as SlurHandlePoints;
+    slurDragRef.current = { ...drag, points: next };
+    setSlurPreviewPoints(next);
+  }, []);
+
+  const handleSlurPointerUp = useCallback((event: PointerEvent) => {
+    const drag = slurDragRef.current;
+    if (!drag) {
+      return;
+    }
+    const svg = svgRef.current;
+    let points = drag.points;
+    if (svg) {
+      const point = clientToPageCoords(svg, event.clientX, event.clientY);
+      if (point) {
+        points = drag.points.map((existing, index) =>
+          index === drag.handleIndex ? point : existing,
+        ) as SlurHandlePoints;
+      }
+    }
+    slurDragRef.current = null;
+    setSlurPreviewPoints(null);
+    onSlurBezierCommitRef.current?.(drag.slurId, points);
+    event.preventDefault();
+  }, []);
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (isDraggingRef.current && dragStartDataRef.current) {
@@ -437,6 +620,9 @@ const ImageViewer: React.FC<{
   useEffect(() => {
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
+    document.addEventListener('pointermove', handleSlurPointerMove);
+    document.addEventListener('pointerup', handleSlurPointerUp);
+    document.addEventListener('pointercancel', handleSlurPointerUp);
     document.addEventListener('touchmove', handleTouchMove);
     document.addEventListener('touchend', handleTouchEnd);
 
@@ -472,12 +658,15 @@ const ImageViewer: React.FC<{
     return () => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('pointermove', handleSlurPointerMove);
+      document.removeEventListener('pointerup', handleSlurPointerUp);
+      document.removeEventListener('pointercancel', handleSlurPointerUp);
       document.removeEventListener('touchmove', handleTouchMove);
       document.removeEventListener('touchend', handleTouchEnd);
       document.removeEventListener('keydown', handleKeyDown);
       document.removeEventListener('keyup', handleKeyUp);
     };
-  }, [handleMouseMove, handleMouseUp, handleTouchMove, handleTouchEnd]);
+  }, [handleMouseMove, handleMouseUp, handleTouchMove, handleTouchEnd, handleSlurPointerMove, handleSlurPointerUp]);
 
   return (
     <div

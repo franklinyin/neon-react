@@ -12,6 +12,9 @@ type EditPanelProps = {
   flipEnabled?: boolean;
   onFlipSelected?: () => void;
   flipDisabled?: boolean;
+  slurEnabled?: boolean;
+  onSlurSelected?: () => void;
+  slurDisabled?: boolean;
 };
 
 export default function EditPanel({
@@ -25,12 +28,16 @@ export default function EditPanel({
   flipEnabled = false,
   onFlipSelected,
   flipDisabled = false,
+  slurEnabled = false,
+  onSlurSelected,
+  slurDisabled = false,
 }: EditPanelProps) {
   const [isOpen, setIsOpen] = useState(true);
   const [selectBy, setSelectBy] = useState<'syllable' | 'neume' | 'nc' | 'staff'>('syllable');
   const canDelete = enabled && selectedCount > 0 && !deleteDisabled;
   const canBeam = enabled && beamEnabled && !beamDisabled;
   const canFlip = enabled && flipEnabled && !flipDisabled;
+  const canSlur = enabled && slurEnabled && !slurDisabled;
 
   return (
     <div className="panel" style={enabled ? undefined : { opacity: 0.55 }}>
@@ -106,6 +113,17 @@ export default function EditPanel({
                 onClick={onBeamSelected}
               >
                 Beam
+              </button>
+            </p>
+            <p className="control">
+              <button
+                type="button"
+                className="button"
+                id="slurSelected"
+                disabled={!canSlur}
+                onClick={onSlurSelected}
+              >
+                Slur
               </button>
             </p>
             <p className="control">

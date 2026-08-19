@@ -13,6 +13,14 @@ import { buildStructuralNoteInsertAction, type StructuralNoteKind } from './lib/
 import { buildDeleteElementsAction } from './lib/schenker/remove';
 import { activeScoreOverlay, buildBeamNotesAction, canBeamSelection } from './lib/schenker/beam';
 import { buildFlipAction, canFlipSelection } from './lib/schenker/flip';
+import {
+  activeSlurOverlay,
+  buildSlurBezierAction,
+  buildSlurNotesAction,
+  canSlurSelection,
+  parseSlurBezierFromOverlay,
+  sortNoteIdsByX,
+} from './lib/schenker/slur';
 import { createMeiBlob, downloadMei } from './lib/mei/downloadMei';
 
 const CF005_IMAGE = '/samples/CF-005.png';
@@ -45,11 +53,13 @@ function App() {
   const [activeInsertTool, setActiveInsertTool] = useState<InsertTool>(null);
   const [selectedNoteIds, setSelectedNoteIds] = useState<string[]>([]);
   const [selectedBeamId, setSelectedBeamId] = useState<string | null>(null);
+  const [selectedSlurId, setSelectedSlurId] = useState<string | null>(null);
   const { svg, loading, editing, error, editAndRender, getMEI } = useVerovioScore(CF005_MEI);
   const isEditModeRef = useRef(isEditMode);
   const activeInsertToolRef = useRef(activeInsertTool);
   const selectedNoteIdsRef = useRef(selectedNoteIds);
   const selectedBeamIdRef = useRef(selectedBeamId);
+  const selectedSlurIdRef = useRef(selectedSlurId);
   const editingRef = useRef(editing);
   const loadingRef = useRef(loading);
   const downloadingRef = useRef(false);
@@ -58,6 +68,7 @@ function App() {
   activeInsertToolRef.current = activeInsertTool;
   selectedNoteIdsRef.current = selectedNoteIds;
   selectedBeamIdRef.current = selectedBeamId;
+  selectedSlurIdRef.current = selectedSlurId;
   editingRef.current = editing;
   loadingRef.current = loading;
 
@@ -70,6 +81,7 @@ function App() {
     setActiveInsertTool(null);
     setSelectedNoteIds([]);
     setSelectedBeamId(null);
+    setSelectedSlurId(null);
   }, []);
 
   const handleInsertToolChange = useCallback((tool: InsertTool) => {
@@ -80,6 +92,7 @@ function App() {
     if (tool) {
       setSelectedNoteIds([]);
       setSelectedBeamId(null);
+      setSelectedSlurId(null);
     }
   }, []);
 
@@ -93,6 +106,9 @@ function App() {
     const ids = [...selectedNoteIdsRef.current];
     if (selectedBeamIdRef.current) {
       ids.push(selectedBeamIdRef.current);
+    }
+    if (selectedSlurIdRef.current) {
+      ids.push(selectedSlurIdRef.current);
     }
     if (ids.length === 0) {
       return;
@@ -152,8 +168,51 @@ function App() {
     if (ok) {
       setSelectedNoteIds([]);
       setSelectedBeamId(null);
+      setSelectedSlurId(null);
     }
   }, [editAndRender]);
+
+  const handleSlurSelected = useCallback(async () => {
+    if (!isEditModeRef.current || activeInsertToolRef.current) {
+      return;
+    }
+    if (loadingRef.current || editingRef.current) {
+      return;
+    }
+    const overlay = activeSlurOverlay();
+    const ids = selectedNoteIdsRef.current;
+    if (!canSlurSelection(overlay, ids)) {
+      return;
+    }
+    const ordered = sortNoteIdsByX(overlay, ids);
+    const action = buildSlurNotesAction(ordered);
+    if (import.meta.env.DEV) {
+      console.log('[phase5] slur payload', action);
+    }
+    const ok = await editAndRender(action);
+    if (ok) {
+      setSelectedNoteIds([]);
+      setSelectedBeamId(null);
+      setSelectedSlurId(null);
+    }
+  }, [editAndRender]);
+
+  const handleSlurBezierCommit = useCallback(
+    async (slurId: string, points: [ScorePoint, ScorePoint, ScorePoint, ScorePoint]) => {
+      if (!isEditModeRef.current || activeInsertToolRef.current) {
+        return;
+      }
+      if (loadingRef.current || editingRef.current) {
+        return;
+      }
+      const action = buildSlurBezierAction(slurId, points);
+      if (import.meta.env.DEV) {
+        console.log('[phase5] slurBezier payload', action);
+      }
+      await editAndRender(action);
+    },
+    [editAndRender],
+  );
 
   const beamEnabled = useMemo(() => {
     if (!isEditMode || activeInsertTool) {
@@ -169,7 +228,22 @@ function App() {
     return canFlipSelection(activeScoreOverlay(), selectedNoteIds, selectedBeamId);
   }, [isEditMode, activeInsertTool, selectedNoteIds, selectedBeamId, svg]);
 
-  const selectedCount = selectedNoteIds.length + (selectedBeamId ? 1 : 0);
+  const slurEnabled = useMemo(() => {
+    if (!isEditMode || activeInsertTool) {
+      return false;
+    }
+    return canSlurSelection(activeSlurOverlay(), selectedNoteIds);
+  }, [isEditMode, activeInsertTool, selectedNoteIds, svg]);
+
+  const slurControlPoints = useMemo(() => {
+    if (!selectedSlurId) {
+      return null;
+    }
+    return parseSlurBezierFromOverlay(activeSlurOverlay(), selectedSlurId);
+  }, [selectedSlurId, svg]);
+
+  const selectedCount =
+    selectedNoteIds.length + (selectedBeamId ? 1 : 0) + (selectedSlurId ? 1 : 0);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -192,7 +266,9 @@ function App() {
         return;
       }
       const hasSelection =
-        selectedNoteIdsRef.current.length > 0 || Boolean(selectedBeamIdRef.current);
+        selectedNoteIdsRef.current.length > 0 ||
+        Boolean(selectedBeamIdRef.current) ||
+        Boolean(selectedSlurIdRef.current);
       if (!hasSelection) {
         return;
       }
@@ -269,15 +345,24 @@ function App() {
       if (hit.beamId) {
         setSelectedBeamId(hit.beamId);
         setSelectedNoteIds([]);
+        setSelectedSlurId(null);
+        return;
+      }
+      if (hit.slurId) {
+        setSelectedSlurId(hit.slurId);
+        setSelectedNoteIds([]);
+        setSelectedBeamId(null);
         return;
       }
       if (!hit.noteId) {
         setSelectedNoteIds([]);
         setSelectedBeamId(null);
+        setSelectedSlurId(null);
         return;
       }
       const noteId = hit.noteId;
       setSelectedBeamId(null);
+      setSelectedSlurId(null);
       if (hit.additive) {
         setSelectedNoteIds((current) =>
           current.includes(noteId) ? current.filter((id) => id !== noteId) : [...current, noteId],
@@ -366,7 +451,12 @@ function App() {
               meiSvg={svg}
               selectedNoteIds={selectedNoteIds}
               selectedBeamId={selectedBeamId}
+              selectedSlurId={selectedSlurId}
+              slurControlPoints={slurControlPoints}
               onScoreClick={handleScoreClick}
+              onSlurBezierCommit={(slurId, points) => {
+                void handleSlurBezierCommit(slurId, points);
+              }}
               onZoomReady={(zoom) => setZoomHandler(zoom)}
             />
           )}
@@ -401,6 +491,11 @@ function App() {
                   void handleFlipSelected();
                 }}
                 flipDisabled={loading || editing || Boolean(activeInsertTool) || Boolean(error)}
+                slurEnabled={slurEnabled}
+                onSlurSelected={() => {
+                  void handleSlurSelected();
+                }}
+                slurDisabled={loading || editing || Boolean(activeInsertTool) || Boolean(error)}
               />
             </div>
             <div id="undoRedo_controls" style={isEditMode ? undefined : { opacity: 0.55, pointerEvents: 'none' }}>
