@@ -12,6 +12,7 @@ import { findNearestStaff, measureRenderedStaffs, yToLoc } from './lib/schenker/
 import { buildStructuralNoteInsertAction, type StructuralNoteKind } from './lib/schenker/structuralNote';
 import { buildDeleteElementsAction } from './lib/schenker/remove';
 import { activeScoreOverlay, buildBeamNotesAction, canBeamSelection } from './lib/schenker/beam';
+import { buildFlipAction, canFlipSelection } from './lib/schenker/flip';
 import { createMeiBlob, downloadMei } from './lib/mei/downloadMei';
 
 const CF005_IMAGE = '/samples/CF-005.png';
@@ -43,10 +44,12 @@ function App() {
   const [isEditMode, setIsEditMode] = useState(false);
   const [activeInsertTool, setActiveInsertTool] = useState<InsertTool>(null);
   const [selectedNoteIds, setSelectedNoteIds] = useState<string[]>([]);
+  const [selectedBeamId, setSelectedBeamId] = useState<string | null>(null);
   const { svg, loading, editing, error, editAndRender, getMEI } = useVerovioScore(CF005_MEI);
   const isEditModeRef = useRef(isEditMode);
   const activeInsertToolRef = useRef(activeInsertTool);
   const selectedNoteIdsRef = useRef(selectedNoteIds);
+  const selectedBeamIdRef = useRef(selectedBeamId);
   const editingRef = useRef(editing);
   const loadingRef = useRef(loading);
   const downloadingRef = useRef(false);
@@ -54,6 +57,7 @@ function App() {
   isEditModeRef.current = isEditMode;
   activeInsertToolRef.current = activeInsertTool;
   selectedNoteIdsRef.current = selectedNoteIds;
+  selectedBeamIdRef.current = selectedBeamId;
   editingRef.current = editing;
   loadingRef.current = loading;
 
@@ -65,6 +69,7 @@ function App() {
     setIsEditMode(false);
     setActiveInsertTool(null);
     setSelectedNoteIds([]);
+    setSelectedBeamId(null);
   }, []);
 
   const handleInsertToolChange = useCallback((tool: InsertTool) => {
@@ -74,6 +79,7 @@ function App() {
     setActiveInsertTool(tool);
     if (tool) {
       setSelectedNoteIds([]);
+      setSelectedBeamId(null);
     }
   }, []);
 
@@ -84,7 +90,10 @@ function App() {
     if (loadingRef.current || editingRef.current) {
       return;
     }
-    const ids = selectedNoteIdsRef.current;
+    const ids = [...selectedNoteIdsRef.current];
+    if (selectedBeamIdRef.current) {
+      ids.push(selectedBeamIdRef.current);
+    }
     if (ids.length === 0) {
       return;
     }
@@ -95,6 +104,32 @@ function App() {
     const ok = await editAndRender(action);
     if (ok) {
       setSelectedNoteIds([]);
+      setSelectedBeamId(null);
+    }
+  }, [editAndRender]);
+
+  const handleFlipSelected = useCallback(async () => {
+    if (!isEditModeRef.current || activeInsertToolRef.current) {
+      return;
+    }
+    if (loadingRef.current || editingRef.current) {
+      return;
+    }
+    const overlay = activeScoreOverlay();
+    const beamId = selectedBeamIdRef.current;
+    const noteIds = selectedNoteIdsRef.current;
+    if (!canFlipSelection(overlay, noteIds, beamId)) {
+      return;
+    }
+    const elementId = beamId ?? noteIds[0];
+    const action = buildFlipAction(elementId);
+    if (import.meta.env.DEV) {
+      console.log('[phase5] flip payload', action);
+    }
+    const ok = await editAndRender(action);
+    if (ok) {
+      setSelectedNoteIds([]);
+      setSelectedBeamId(null);
     }
   }, [editAndRender]);
 
@@ -116,6 +151,7 @@ function App() {
     const ok = await editAndRender(action);
     if (ok) {
       setSelectedNoteIds([]);
+      setSelectedBeamId(null);
     }
   }, [editAndRender]);
 
@@ -126,6 +162,15 @@ function App() {
     return canBeamSelection(activeScoreOverlay(), selectedNoteIds);
   }, [isEditMode, activeInsertTool, selectedNoteIds, svg]);
 
+  const flipEnabled = useMemo(() => {
+    if (!isEditMode || activeInsertTool) {
+      return false;
+    }
+    return canFlipSelection(activeScoreOverlay(), selectedNoteIds, selectedBeamId);
+  }, [isEditMode, activeInsertTool, selectedNoteIds, selectedBeamId, svg]);
+
+  const selectedCount = selectedNoteIds.length + (selectedBeamId ? 1 : 0);
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (isTypingTarget(event.target)) {
@@ -134,6 +179,7 @@ function App() {
       if (event.key === 'Escape') {
         setActiveInsertTool(null);
         setSelectedNoteIds([]);
+        setSelectedBeamId(null);
         return;
       }
       if (event.key !== 'Delete' && event.key !== 'Backspace') {
@@ -142,7 +188,12 @@ function App() {
       if (!isEditModeRef.current || activeInsertToolRef.current) {
         return;
       }
-      if (loadingRef.current || editingRef.current || selectedNoteIdsRef.current.length === 0) {
+      if (loadingRef.current || editingRef.current) {
+        return;
+      }
+      const hasSelection =
+        selectedNoteIdsRef.current.length > 0 || Boolean(selectedBeamIdRef.current);
+      if (!hasSelection) {
         return;
       }
       event.preventDefault();
@@ -215,12 +266,18 @@ function App() {
       }
 
       // Selection mode (default while Edit MEI is active and no insert tool).
-      // Stage-1 CF-005: every rendered .note is a Structural Note.
-      if (!hit.noteId) {
+      if (hit.beamId) {
+        setSelectedBeamId(hit.beamId);
         setSelectedNoteIds([]);
         return;
       }
+      if (!hit.noteId) {
+        setSelectedNoteIds([]);
+        setSelectedBeamId(null);
+        return;
+      }
       const noteId = hit.noteId;
+      setSelectedBeamId(null);
       if (hit.additive) {
         setSelectedNoteIds((current) =>
           current.includes(noteId) ? current.filter((id) => id !== noteId) : [...current, noteId],
@@ -308,6 +365,7 @@ function App() {
               imagePath={CF005_IMAGE}
               meiSvg={svg}
               selectedNoteIds={selectedNoteIds}
+              selectedBeamId={selectedBeamId}
               onScoreClick={handleScoreClick}
               onZoomReady={(zoom) => setZoomHandler(zoom)}
             />
@@ -328,7 +386,7 @@ function App() {
             <div id="edit_controls">
               <EditPanel
                 enabled={isEditMode}
-                selectedCount={selectedNoteIds.length}
+                selectedCount={selectedCount}
                 onDeleteSelected={() => {
                   void handleDeleteSelected();
                 }}
@@ -338,6 +396,11 @@ function App() {
                   void handleBeamSelected();
                 }}
                 beamDisabled={loading || editing || Boolean(activeInsertTool) || Boolean(error)}
+                flipEnabled={flipEnabled}
+                onFlipSelected={() => {
+                  void handleFlipSelected();
+                }}
+                flipDisabled={loading || editing || Boolean(activeInsertTool) || Boolean(error)}
               />
             </div>
             <div id="undoRedo_controls" style={isEditMode ? undefined : { opacity: 0.55, pointerEvents: 'none' }}>

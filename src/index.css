@@ -145,6 +145,14 @@ button:focus {
     fill: currentColor;
 }
 
+.beam.selected-schenker-beam,
+.beam.selected-schenker-beam path,
+.beam.selected-schenker-beam use {
+    color: #d00;
+    fill: currentColor;
+    stroke: #d00;
+}
+
 /*
  * Stage-1 notes are small <use> glyphs sitting on staff-line paths.
  * bounding-box keeps the click on the note group instead of the staff

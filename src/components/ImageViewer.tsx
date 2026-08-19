@@ -17,12 +17,15 @@ export type ScoreHit = {
    * That is not a general future rule.
    */
   noteId: string | null;
+  /** xml:id of the nearest `.beam` when the beam bar itself is clicked. */
+  beamId: string | null;
   additive: boolean;
 };
 
 const SELECTED_NOTE_CLASS = 'selected-schenker-note';
+const SELECTED_BEAM_CLASS = 'selected-schenker-beam';
 
-function noteIdFromEvent(event: React.MouseEvent): string | null {
+function selectionFromEvent(event: React.MouseEvent): { noteId: string | null; beamId: string | null } {
   const candidates: Element[] = [];
   if (event.target instanceof Element) {
     candidates.push(event.target);
@@ -34,10 +37,14 @@ function noteIdFromEvent(event: React.MouseEvent): string | null {
   for (const el of candidates) {
     const note = el.closest('.note');
     if (note?.id) {
-      return note.id;
+      return { noteId: note.id, beamId: null };
+    }
+    const beam = el.closest('.beam');
+    if (beam?.id) {
+      return { noteId: null, beamId: beam.id };
     }
   }
-  return null;
+  return { noteId: null, beamId: null };
 }
 
 function applyNoteSelection(overlay: SVGSVGElement, selectedNoteIds: string[]): void {
@@ -52,6 +59,19 @@ function applyNoteSelection(overlay: SVGSVGElement, selectedNoteIds: string[]): 
     if (note) {
       note.classList.add(SELECTED_NOTE_CLASS, 'selected');
     }
+  }
+}
+
+function applyBeamSelection(overlay: SVGSVGElement, selectedBeamId: string | null): void {
+  overlay.querySelectorAll(`.beam.${SELECTED_BEAM_CLASS}`).forEach((beam) => {
+    beam.classList.remove(SELECTED_BEAM_CLASS, 'selected');
+  });
+  if (!selectedBeamId) {
+    return;
+  }
+  const beam = overlay.querySelector(`#${CSS.escape(selectedBeamId)}.beam`);
+  if (beam) {
+    beam.classList.add(SELECTED_BEAM_CLASS, 'selected');
   }
 }
 
@@ -113,12 +133,14 @@ const ImageViewer: React.FC<{
   imagePath?: string;
   meiSvg?: string | null;
   selectedNoteIds?: string[];
+  selectedBeamId?: string | null;
   onScoreClick?: (hit: ScoreHit) => void;
   onZoomReady?: (zoom: ReturnType<typeof useZoom>) => void;
 }> = ({
   imagePath = '/SK-001.png',
   meiSvg = null,
   selectedNoteIds = [],
+  selectedBeamId = null,
   onScoreClick,
   onZoomReady,
 }) => {
@@ -135,6 +157,8 @@ const ImageViewer: React.FC<{
   onScoreClickRef.current = onScoreClick;
   const selectedNoteIdsRef = useRef(selectedNoteIds);
   selectedNoteIdsRef.current = selectedNoteIds;
+  const selectedBeamIdRef = useRef(selectedBeamId);
+  selectedBeamIdRef.current = selectedBeamId;
 
   useEffect(() => {
     if (svgRef.current) {
@@ -250,6 +274,7 @@ const ImageViewer: React.FC<{
     group.replaceChild(overlay, existing);
 
     applyNoteSelection(overlay, selectedNoteIdsRef.current);
+    applyBeamSelection(overlay, selectedBeamIdRef.current);
 
     if (import.meta.env.DEV) {
       const staffs = measureRenderedStaffs(overlay);
@@ -275,7 +300,8 @@ const ImageViewer: React.FC<{
       return;
     }
     applyNoteSelection(overlay, selectedNoteIds);
-  }, [selectedNoteIds]);
+    applyBeamSelection(overlay, selectedBeamId);
+  }, [selectedNoteIds, selectedBeamId]);
 
   useEffect(() => {
     if (!import.meta.env.DEV) {
@@ -347,9 +373,11 @@ const ImageViewer: React.FC<{
     if (point.x <= 0 || point.x >= width || point.y <= 0 || point.y >= height) {
       return;
     }
+    const selection = selectionFromEvent(e);
     onScoreClickRef.current({
       point,
-      noteId: noteIdFromEvent(e),
+      noteId: selection.noteId,
+      beamId: selection.beamId,
       additive: e.metaKey || e.ctrlKey,
     });
   }, [imageDimensions]);

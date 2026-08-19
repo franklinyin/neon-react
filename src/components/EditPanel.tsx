@@ -9,6 +9,9 @@ type EditPanelProps = {
   beamEnabled?: boolean;
   onBeamSelected?: () => void;
   beamDisabled?: boolean;
+  flipEnabled?: boolean;
+  onFlipSelected?: () => void;
+  flipDisabled?: boolean;
 };
 
 export default function EditPanel({
@@ -19,11 +22,15 @@ export default function EditPanel({
   beamEnabled = false,
   onBeamSelected,
   beamDisabled = false,
+  flipEnabled = false,
+  onFlipSelected,
+  flipDisabled = false,
 }: EditPanelProps) {
   const [isOpen, setIsOpen] = useState(true);
   const [selectBy, setSelectBy] = useState<'syllable' | 'neume' | 'nc' | 'staff'>('syllable');
   const canDelete = enabled && selectedCount > 0 && !deleteDisabled;
   const canBeam = enabled && beamEnabled && !beamDisabled;
+  const canFlip = enabled && flipEnabled && !flipDisabled;
 
   return (
     <div className="panel" style={enabled ? undefined : { opacity: 0.55 }}>
@@ -99,6 +106,17 @@ export default function EditPanel({
                 onClick={onBeamSelected}
               >
                 Beam
+              </button>
+            </p>
+            <p className="control">
+              <button
+                type="button"
+                className="button"
+                id="flipSelected"
+                disabled={!canFlip}
+                onClick={onFlipSelected}
+              >
+                Flip
               </button>
             </p>
             <a id="moreEdit" className="panel-block is-invisible"></a>
