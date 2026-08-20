@@ -71,33 +71,45 @@ export function canSlurSelection(overlay: SVGSVGElement | null, selectedIds: str
   return staffIds.size === 1;
 }
 
+function parseBezierPointAttr(value: string | null): ScorePoint | null {
+  if (!value) {
+    return null;
+  }
+  const parts = value.split(',');
+  if (parts.length !== 2) {
+    return null;
+  }
+  const x = Number(parts[0]);
+  const y = Number(parts[1]);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    return null;
+  }
+  return { x, y };
+}
+
 /**
- * Parse the centerline of a Verovio thick slur path:
- * M p0 C c1 c2 p3 ...
+ * Read the centerline cubic Bézier (P0, C1, C2, P3) that Verovio used to draw the slur.
+ * Values come from read-only `data-bezier-*` attributes on the slur SVG group.
  */
-export function parseSlurBezierFromOverlay(
+export function readSlurBezierFromMetadata(
   overlay: SVGSVGElement | null,
   slurId: string,
 ): SlurBezierPoints | null {
   if (!overlay || !slurId) {
     return null;
   }
-  const path = overlay.querySelector(`#${CSS.escape(slurId)}.slur path`);
-  const d = path?.getAttribute('d');
-  if (!d) {
+  const slur = overlay.querySelector(`#${CSS.escape(slurId)}.slur`);
+  if (!slur) {
     return null;
   }
-  const numbers = d.match(/-?\d+/g);
-  if (!numbers || numbers.length < 8) {
+  const p0 = parseBezierPointAttr(slur.getAttribute('data-bezier-p0'));
+  const c1 = parseBezierPointAttr(slur.getAttribute('data-bezier-c1'));
+  const c2 = parseBezierPointAttr(slur.getAttribute('data-bezier-c2'));
+  const p3 = parseBezierPointAttr(slur.getAttribute('data-bezier-p3'));
+  if (!p0 || !c1 || !c2 || !p3) {
     return null;
   }
-  const values = numbers.slice(0, 8).map((value) => Number(value));
-  return [
-    { x: values[0], y: values[1] },
-    { x: values[2], y: values[3] },
-    { x: values[4], y: values[5] },
-    { x: values[6], y: values[7] },
-  ];
+  return [p0, c1, c2, p3];
 }
 
 export function activeSlurOverlay(): SVGSVGElement | null {

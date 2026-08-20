@@ -163,7 +163,7 @@ button:focus {
 .schenker-slur-handle {
     fill: #fff;
     stroke: #06c;
-    stroke-width: 20;
+    stroke-width: 8;
     pointer-events: all;
     cursor: grab;
 }
@@ -172,9 +172,14 @@ button:focus {
     cursor: grabbing;
 }
 
+.schenker-slur-handle-readonly {
+    pointer-events: none;
+    cursor: default;
+}
+
 .schenker-slur-handle-label {
     fill: #06c;
-    font-size: 120px;
+    font-size: 72px;
     font-family: sans-serif;
     pointer-events: none;
     user-select: none;
@@ -182,8 +187,8 @@ button:focus {
 
 .schenker-slur-handle-line {
     stroke: #06c;
-    stroke-width: 12;
-    stroke-dasharray: 40 40;
+    stroke-width: 4;
+    stroke-dasharray: 16 16;
     pointer-events: none;
 }
 

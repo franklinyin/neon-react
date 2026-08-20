@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useZoom } from '../hooks/useZoom';
 import { measureRenderedStaffs } from '../lib/schenker/geometry';
+import { readSlurBezierFromMetadata } from '../lib/schenker/slur';
 
 export type ScorePoint = {
   x: number;
@@ -28,8 +29,9 @@ const SELECTED_NOTE_CLASS = 'selected-schenker-note';
 const SELECTED_BEAM_CLASS = 'selected-schenker-beam';
 const SELECTED_SLUR_CLASS = 'selected-schenker-slur';
 const SLUR_HANDLES_LAYER_ID = 'schenker-slur-handles';
-/** Phase S1: default geometry only. Handle editing comes later. */
-const SHOW_SLUR_HANDLES = false;
+/** Phase S2: read-only Bézier handles from Verovio metadata. */
+const SHOW_SLUR_HANDLES = true;
+const SLUR_HANDLES_READONLY = true;
 
 function selectionFromEvent(event: React.MouseEvent): {
   noteId: string | null;
@@ -111,7 +113,7 @@ function removeSlurHandles(overlay: SVGSVGElement): void {
 function renderSlurHandles(
   overlay: SVGSVGElement,
   points: SlurHandlePoints,
-  onHandlePointerDown: (index: number, event: PointerEvent) => void,
+  onHandlePointerDown?: (index: number, event: PointerEvent) => void,
 ): void {
   removeSlurHandles(overlay);
   const pageMargin = overlay.querySelector<SVGGElement>('.page-margin');
@@ -135,24 +137,29 @@ function renderSlurHandles(
   addLine(points[0], points[1]);
   addLine(points[2], points[3]);
 
-  const labels = ['p0', 'p1', 'p2', 'p3'];
-  const radius = 40;
+  const labels = ['P0', 'C1', 'C2', 'P3'];
+  const radius = 18;
   points.forEach((point, index) => {
     const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
     circle.setAttribute('cx', String(point.x));
     circle.setAttribute('cy', String(point.y));
     circle.setAttribute('r', String(radius));
     circle.classList.add('schenker-slur-handle');
+    if (SLUR_HANDLES_READONLY) {
+      circle.classList.add('schenker-slur-handle-readonly');
+    }
     circle.dataset.handleIndex = String(index);
-    circle.addEventListener('pointerdown', (event) => {
-      event.stopPropagation();
-      onHandlePointerDown(index, event);
-    });
+    if (onHandlePointerDown) {
+      circle.addEventListener('pointerdown', (event) => {
+        event.stopPropagation();
+        onHandlePointerDown(index, event);
+      });
+    }
     layer.appendChild(circle);
 
     const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-    label.setAttribute('x', String(point.x + radius + 20));
-    label.setAttribute('y', String(point.y - radius - 10));
+    label.setAttribute('x', String(point.x + radius + 12));
+    label.setAttribute('y', String(point.y - radius - 6));
     label.classList.add('schenker-slur-handle-label');
     label.textContent = labels[index];
     layer.appendChild(label);
@@ -418,27 +425,37 @@ const ImageViewer: React.FC<{
       removeSlurHandles(overlay);
       return;
     }
-    const points = slurPreviewPoints ?? slurControlPointsRef.current;
-    if (!selectedSlurIdRef.current || !points) {
+    const slurId = selectedSlurIdRef.current;
+    const points =
+      slurPreviewPoints ??
+      (slurId ? readSlurBezierFromMetadata(overlay, slurId) : null) ??
+      slurControlPointsRef.current;
+    if (!slurId || !points) {
       removeSlurHandles(overlay);
       return;
     }
-    renderSlurHandles(overlay, points, (handleIndex, event) => {
-      if (!selectedSlurIdRef.current || !points) {
-        return;
-      }
-      event.preventDefault();
-      const svg = svgRef.current;
-      if (!svg) {
-        return;
-      }
-      slurDragRef.current = {
-        slurId: selectedSlurIdRef.current,
-        handleIndex,
-        points: points.map((point) => ({ ...point })) as SlurHandlePoints,
-      };
-      (event.currentTarget as Element).setPointerCapture(event.pointerId);
-    });
+    renderSlurHandles(
+      overlay,
+      points,
+      SLUR_HANDLES_READONLY
+        ? undefined
+        : (handleIndex, event) => {
+            if (!selectedSlurIdRef.current || !points) {
+              return;
+            }
+            event.preventDefault();
+            const svg = svgRef.current;
+            if (!svg) {
+              return;
+            }
+            slurDragRef.current = {
+              slurId: selectedSlurIdRef.current,
+              handleIndex,
+              points: points.map((point) => ({ ...point })) as SlurHandlePoints,
+            };
+            (event.currentTarget as Element).setPointerCapture(event.pointerId);
+          },
+    );
   }, [slurPreviewPoints]);
 
   useEffect(() => {
@@ -626,9 +643,11 @@ const ImageViewer: React.FC<{
   useEffect(() => {
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
-    document.addEventListener('pointermove', handleSlurPointerMove);
-    document.addEventListener('pointerup', handleSlurPointerUp);
-    document.addEventListener('pointercancel', handleSlurPointerUp);
+    if (!SLUR_HANDLES_READONLY) {
+      document.addEventListener('pointermove', handleSlurPointerMove);
+      document.addEventListener('pointerup', handleSlurPointerUp);
+      document.addEventListener('pointercancel', handleSlurPointerUp);
+    }
     document.addEventListener('touchmove', handleTouchMove);
     document.addEventListener('touchend', handleTouchEnd);
 
@@ -664,9 +683,11 @@ const ImageViewer: React.FC<{
     return () => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
-      document.removeEventListener('pointermove', handleSlurPointerMove);
-      document.removeEventListener('pointerup', handleSlurPointerUp);
-      document.removeEventListener('pointercancel', handleSlurPointerUp);
+      if (!SLUR_HANDLES_READONLY) {
+        document.removeEventListener('pointermove', handleSlurPointerMove);
+        document.removeEventListener('pointerup', handleSlurPointerUp);
+        document.removeEventListener('pointercancel', handleSlurPointerUp);
+      }
       document.removeEventListener('touchmove', handleTouchMove);
       document.removeEventListener('touchend', handleTouchEnd);
       document.removeEventListener('keydown', handleKeyDown);
