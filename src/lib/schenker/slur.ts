@@ -16,9 +16,9 @@ export function buildSlurNotesAction(noteIds: string[]): VerovioEditorAction {
 }
 
 /**
- * Phase S4: push edited P0/C1/C2/P3 into Verovio runtime custom geometry.
+ * Phase S4/S5A: push edited P0/C1/C2/P3 to Verovio and persist as standard MEI
+ * startho/startvo/endho/endvo + @bezier (relative control offsets).
  * Points must be in the same SVG/device (.page-margin) space as data-bezier-*.
- * Does not write @bezier or mutate MEI.
  */
 export function buildSchenkerSlurCurveAction(
   elementId: string,
