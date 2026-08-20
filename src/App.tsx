@@ -15,10 +15,8 @@ import { activeScoreOverlay, buildBeamNotesAction, canBeamSelection } from './li
 import { buildFlipAction, canFlipSelection } from './lib/schenker/flip';
 import {
   activeSlurOverlay,
-  buildSlurBezierAction,
   buildSlurNotesAction,
   canSlurSelection,
-  parseSlurBezierFromOverlay,
   sortNoteIdsByX,
 } from './lib/schenker/slur';
 import { createMeiBlob, downloadMei } from './lib/mei/downloadMei';
@@ -197,23 +195,6 @@ function App() {
     }
   }, [editAndRender]);
 
-  const handleSlurBezierCommit = useCallback(
-    async (slurId: string, points: [ScorePoint, ScorePoint, ScorePoint, ScorePoint]) => {
-      if (!isEditModeRef.current || activeInsertToolRef.current) {
-        return;
-      }
-      if (loadingRef.current || editingRef.current) {
-        return;
-      }
-      const action = buildSlurBezierAction(slurId, points);
-      if (import.meta.env.DEV) {
-        console.log('[phase5] slurBezier payload', action);
-      }
-      await editAndRender(action);
-    },
-    [editAndRender],
-  );
-
   const beamEnabled = useMemo(() => {
     if (!isEditMode || activeInsertTool) {
       return false;
@@ -234,13 +215,6 @@ function App() {
     }
     return canSlurSelection(activeSlurOverlay(), selectedNoteIds);
   }, [isEditMode, activeInsertTool, selectedNoteIds, svg]);
-
-  const slurControlPoints = useMemo(() => {
-    if (!selectedSlurId) {
-      return null;
-    }
-    return parseSlurBezierFromOverlay(activeSlurOverlay(), selectedSlurId);
-  }, [selectedSlurId, svg]);
 
   const selectedCount =
     selectedNoteIds.length + (selectedBeamId ? 1 : 0) + (selectedSlurId ? 1 : 0);
@@ -452,11 +426,7 @@ function App() {
               selectedNoteIds={selectedNoteIds}
               selectedBeamId={selectedBeamId}
               selectedSlurId={selectedSlurId}
-              slurControlPoints={slurControlPoints}
               onScoreClick={handleScoreClick}
-              onSlurBezierCommit={(slurId, points) => {
-                void handleSlurBezierCommit(slurId, points);
-              }}
               onZoomReady={(zoom) => setZoomHandler(zoom)}
             />
           )}

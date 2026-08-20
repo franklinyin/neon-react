@@ -28,6 +28,8 @@ const SELECTED_NOTE_CLASS = 'selected-schenker-note';
 const SELECTED_BEAM_CLASS = 'selected-schenker-beam';
 const SELECTED_SLUR_CLASS = 'selected-schenker-slur';
 const SLUR_HANDLES_LAYER_ID = 'schenker-slur-handles';
+/** Phase S1: default geometry only. Handle editing comes later. */
+const SHOW_SLUR_HANDLES = false;
 
 function selectionFromEvent(event: React.MouseEvent): {
   noteId: string | null;
@@ -410,6 +412,10 @@ const ImageViewer: React.FC<{
   const syncSlurHandleLayer = useCallback(() => {
     const overlay = svgRef.current?.querySelector<SVGSVGElement>('.neon-container.active-page');
     if (!overlay) {
+      return;
+    }
+    if (!SHOW_SLUR_HANDLES) {
+      removeSlurHandles(overlay);
       return;
     }
     const points = slurPreviewPoints ?? slurControlPointsRef.current;
