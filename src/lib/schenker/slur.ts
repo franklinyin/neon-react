@@ -15,13 +15,21 @@ export function buildSlurNotesAction(noteIds: string[]): VerovioEditorAction {
   };
 }
 
-export function buildSlurBezierAction(elementId: string, points: SlurBezierPoints): VerovioEditorAction {
+/**
+ * Phase S4: push edited P0/C1/C2/P3 into Verovio runtime custom geometry.
+ * Points must be in the same SVG/device (.page-margin) space as data-bezier-*.
+ * Does not write @bezier or mutate MEI.
+ */
+export function buildSchenkerSlurCurveAction(
+  elementId: string,
+  points: SlurBezierPoints,
+): VerovioEditorAction {
   const id = elementId.trim();
   if (!id) {
-    throw new Error('slurBezier requires a non-empty elementId');
+    throw new Error('schenkerSlurCurve requires a non-empty elementId');
   }
   return {
-    action: 'slurBezier',
+    action: 'schenkerSlurCurve',
     param: {
       elementId: id,
       points: points.map((point) => [Math.round(point.x), Math.round(point.y)]),
@@ -110,6 +118,17 @@ export function readSlurBezierFromMetadata(
     return null;
   }
   return [p0, c1, c2, p3];
+}
+
+export function slurBezierPointsMatch(
+  a: SlurBezierPoints,
+  b: SlurBezierPoints,
+  tolerance = 2,
+): boolean {
+  return a.every((point, index) => (
+    Math.abs(point.x - b[index].x) <= tolerance
+    && Math.abs(point.y - b[index].y) <= tolerance
+  ));
 }
 
 export function activeSlurOverlay(): SVGSVGElement | null {

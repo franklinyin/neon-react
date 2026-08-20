@@ -169,7 +169,8 @@ button:focus {
 .schenker-slur-preview {
     fill: none;
     stroke: #d00;
-    stroke-width: 24;
+    stroke-width: 6;
+    stroke-opacity: 0.45;
     pointer-events: none;
 }
 

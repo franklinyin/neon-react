@@ -15,9 +15,11 @@ import { activeScoreOverlay, buildBeamNotesAction, canBeamSelection } from './li
 import { buildFlipAction, canFlipSelection } from './lib/schenker/flip';
 import {
   activeSlurOverlay,
+  buildSchenkerSlurCurveAction,
   buildSlurNotesAction,
   canSlurSelection,
   sortNoteIdsByX,
+  type SlurBezierPoints,
 } from './lib/schenker/slur';
 import { createMeiBlob, downloadMei } from './lib/mei/downloadMei';
 
@@ -194,6 +196,41 @@ function App() {
       setSelectedSlurId(null);
     }
   }, [editAndRender]);
+
+  const pendingSlurCurveRef = useRef<{ slurId: string; points: SlurBezierPoints } | null>(null);
+  const slurCurveBusyRef = useRef(false);
+
+  const flushSlurCurveCommit = useCallback(async () => {
+    if (slurCurveBusyRef.current) {
+      return;
+    }
+    const pending = pendingSlurCurveRef.current;
+    if (!pending) {
+      return;
+    }
+    pendingSlurCurveRef.current = null;
+    slurCurveBusyRef.current = true;
+    try {
+      const action = buildSchenkerSlurCurveAction(pending.slurId, pending.points);
+      if (import.meta.env.DEV) {
+        console.log('[s4] schenkerSlurCurve payload', action);
+      }
+      await editAndRender(action);
+    } finally {
+      slurCurveBusyRef.current = false;
+      if (pendingSlurCurveRef.current) {
+        void flushSlurCurveCommit();
+      }
+    }
+  }, [editAndRender]);
+
+  const handleSlurCurveCommit = useCallback((slurId: string, points: SlurBezierPoints) => {
+    if (!isEditModeRef.current) {
+      return;
+    }
+    pendingSlurCurveRef.current = { slurId, points };
+    void flushSlurCurveCommit();
+  }, [flushSlurCurveCommit]);
 
   const beamEnabled = useMemo(() => {
     if (!isEditMode || activeInsertTool) {
@@ -427,6 +464,7 @@ function App() {
               selectedBeamId={selectedBeamId}
               selectedSlurId={selectedSlurId}
               onScoreClick={handleScoreClick}
+              onSlurCurveCommit={handleSlurCurveCommit}
               onZoomReady={(zoom) => setZoomHandler(zoom)}
             />
           )}

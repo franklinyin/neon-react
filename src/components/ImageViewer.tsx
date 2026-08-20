@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useZoom } from '../hooks/useZoom';
 import { measureRenderedStaffs } from '../lib/schenker/geometry';
-import { readSlurBezierFromMetadata, type SlurBezierPoints } from '../lib/schenker/slur';
+import { readSlurBezierFromMetadata, slurBezierPointsMatch, type SlurBezierPoints } from '../lib/schenker/slur';
 import {
   buildSlurBezierPathD,
   SLUR_HANDLE_LABELS,
@@ -314,6 +314,7 @@ const ImageViewer: React.FC<{
   selectedBeamId?: string | null;
   selectedSlurId?: string | null;
   onScoreClick?: (hit: ScoreHit) => void;
+  onSlurCurveCommit?: (slurId: string, points: SlurBezierPoints) => void;
   onZoomReady?: (zoom: ReturnType<typeof useZoom>) => void;
 }> = ({
   imagePath = '/SK-001.png',
@@ -322,6 +323,7 @@ const ImageViewer: React.FC<{
   selectedBeamId = null,
   selectedSlurId = null,
   onScoreClick,
+  onSlurCurveCommit,
   onZoomReady,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -343,8 +345,10 @@ const ImageViewer: React.FC<{
   selectedSlurIdRef.current = selectedSlurId;
   const slurLocalDraftRef = useRef<SlurLocalDraft | null>(null);
   const [slurLocalDraft, setSlurLocalDraftState] = useState<SlurLocalDraft | null>(null);
-  const slurDragRef = useRef<{ handleIndex: number } | null>(null);
+  const slurDragRef = useRef<{ handleIndex: number; points: SlurBezierPoints } | null>(null);
   const slurDidDragRef = useRef(false);
+  const onSlurCurveCommitRef = useRef(onSlurCurveCommit);
+  onSlurCurveCommitRef.current = onSlurCurveCommit;
 
   const setSlurLocalDraft = useCallback((draft: SlurLocalDraft | null) => {
     slurLocalDraftRef.current = draft;
@@ -542,11 +546,10 @@ const ImageViewer: React.FC<{
       }
       event.preventDefault();
       slurDidDragRef.current = false;
-      setSlurLocalDraft({
-        slurId: currentSlurId,
+      slurDragRef.current = {
+        handleIndex,
         points: currentPoints.map((point) => ({ ...point })) as SlurBezierPoints,
-      });
-      slurDragRef.current = { handleIndex };
+      };
       (event.currentTarget as Element).setPointerCapture(event.pointerId);
     };
 
@@ -562,11 +565,28 @@ const ImageViewer: React.FC<{
     syncSlurEditorLayer();
   }, [syncSlurEditorLayer, selectedSlurId, slurLocalDraft, meiSvg]);
 
+  // Drop local guide when selection changes or Verovio delivers a new SVG
+  // (runtime geometry is now in the rendered slur).
   useEffect(() => {
     setSlurLocalDraft(null);
     slurDragRef.current = null;
     slurDidDragRef.current = false;
-  }, [selectedSlurId, meiSvg, setSlurLocalDraft]);
+  }, [selectedSlurId, setSlurLocalDraft]);
+
+  useEffect(() => {
+    if (slurDragRef.current) {
+      return;
+    }
+    const draft = slurLocalDraftRef.current;
+    if (!draft) {
+      return;
+    }
+    const overlay = svgRef.current?.querySelector<SVGSVGElement>('.neon-container.active-page');
+    const rendered = overlay ? readSlurBezierFromMetadata(overlay, draft.slurId) : null;
+    if (rendered && slurBezierPointsMatch(rendered, draft.points)) {
+      setSlurLocalDraft(null);
+    }
+  }, [meiSvg, setSlurLocalDraft]);
 
   useEffect(() => {
     if (!import.meta.env.DEV) {
@@ -657,10 +677,9 @@ const ImageViewer: React.FC<{
 
   const handleSlurPointerMove = useCallback((event: PointerEvent) => {
     const drag = slurDragRef.current;
-    const draft = slurLocalDraftRef.current;
     const slurId = selectedSlurIdRef.current;
     const svg = svgRef.current;
-    if (!drag || !draft || !slurId || draft.slurId !== slurId || !svg) {
+    if (!drag || !slurId || !svg) {
       return;
     }
     const point = clientToPageCoords(svg, event.clientX, event.clientY);
@@ -669,31 +688,35 @@ const ImageViewer: React.FC<{
     }
     event.preventDefault();
     slurDidDragRef.current = true;
-    setSlurLocalDraft({
-      slurId,
-      points: updateSlurHandlePoint(draft.points, drag.handleIndex, point.x, point.y),
-    });
+    const nextPoints = updateSlurHandlePoint(drag.points, drag.handleIndex, point.x, point.y);
+    slurDragRef.current = { ...drag, points: nextPoints };
+    setSlurLocalDraft({ slurId, points: nextPoints });
   }, [setSlurLocalDraft]);
 
   const handleSlurPointerUp = useCallback((event: PointerEvent) => {
-    if (!slurDragRef.current) {
+    const drag = slurDragRef.current;
+    if (!drag) {
       return;
     }
-    const drag = slurDragRef.current;
-    const draft = slurLocalDraftRef.current;
     const slurId = selectedSlurIdRef.current;
     const svg = svgRef.current;
-    if (draft && slurId && draft.slurId === slurId && svg) {
+    let points = drag.points;
+    if (slurId && svg) {
       const point = clientToPageCoords(svg, event.clientX, event.clientY);
       if (point) {
-        setSlurLocalDraft({
-          slurId,
-          points: updateSlurHandlePoint(draft.points, drag.handleIndex, point.x, point.y),
-        });
+        points = updateSlurHandlePoint(drag.points, drag.handleIndex, point.x, point.y);
       }
     }
     slurDragRef.current = null;
     event.preventDefault();
+
+    if (!slurDidDragRef.current || !slurId) {
+      return;
+    }
+
+    // Keep the local guide until the new Verovio SVG arrives (meiSvg effect).
+    setSlurLocalDraft({ slurId, points });
+    onSlurCurveCommitRef.current?.(slurId, points);
   }, [setSlurLocalDraft]);
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
