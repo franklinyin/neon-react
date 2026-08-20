@@ -313,6 +313,7 @@ const ImageViewer: React.FC<{
   selectedNoteIds?: string[];
   selectedBeamId?: string | null;
   selectedSlurId?: string | null;
+  slurDraftClearToken?: number;
   onScoreClick?: (hit: ScoreHit) => void;
   onSlurCurveCommit?: (slurId: string, points: SlurBezierPoints) => void;
   onZoomReady?: (zoom: ReturnType<typeof useZoom>) => void;
@@ -322,6 +323,7 @@ const ImageViewer: React.FC<{
   selectedNoteIds = [],
   selectedBeamId = null,
   selectedSlurId = null,
+  slurDraftClearToken = 0,
   onScoreClick,
   onSlurCurveCommit,
   onZoomReady,
@@ -572,6 +574,12 @@ const ImageViewer: React.FC<{
     slurDragRef.current = null;
     slurDidDragRef.current = false;
   }, [selectedSlurId, setSlurLocalDraft]);
+
+  useEffect(() => {
+    setSlurLocalDraft(null);
+    slurDragRef.current = null;
+    slurDidDragRef.current = false;
+  }, [slurDraftClearToken, setSlurLocalDraft]);
 
   useEffect(() => {
     if (slurDragRef.current) {

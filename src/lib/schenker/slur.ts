@@ -37,6 +37,33 @@ export function buildSchenkerSlurCurveAction(
   };
 }
 
+/** Phase S5B1: clear persisted manual geometry so S1 default curve is used again. */
+export function buildSchenkerSlurResetAction(elementId: string): VerovioEditorAction {
+  const id = elementId.trim();
+  if (!id) {
+    throw new Error('schenkerSlurReset requires a non-empty elementId');
+  }
+  return {
+    action: 'schenkerSlurReset',
+    param: { elementId: id },
+  };
+}
+
+export function canResetSlurSelection(
+  overlay: SVGSVGElement | null,
+  selectedSlurId: string | null,
+  selectedNoteIds: string[],
+  selectedBeamId: string | null,
+): boolean {
+  if (!overlay || !selectedSlurId) {
+    return false;
+  }
+  if (selectedNoteIds.length > 0 || selectedBeamId) {
+    return false;
+  }
+  return Boolean(overlay.querySelector(`#${CSS.escape(selectedSlurId)}.slur`));
+}
+
 export function isSchenkerNote(overlay: SVGSVGElement | null, noteId: string): boolean {
   if (!overlay || !noteId) {
     return false;

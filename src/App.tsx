@@ -16,7 +16,9 @@ import { buildFlipAction, canFlipSelection } from './lib/schenker/flip';
 import {
   activeSlurOverlay,
   buildSchenkerSlurCurveAction,
+  buildSchenkerSlurResetAction,
   buildSlurNotesAction,
+  canResetSlurSelection,
   canSlurSelection,
   sortNoteIdsByX,
   type SlurBezierPoints,
@@ -54,6 +56,7 @@ function App() {
   const [selectedNoteIds, setSelectedNoteIds] = useState<string[]>([]);
   const [selectedBeamId, setSelectedBeamId] = useState<string | null>(null);
   const [selectedSlurId, setSelectedSlurId] = useState<string | null>(null);
+  const [slurDraftClearToken, setSlurDraftClearToken] = useState(0);
   const { svg, loading, editing, error, editAndRender, getMEI } = useVerovioScore(CF005_MEI);
   const isEditModeRef = useRef(isEditMode);
   const activeInsertToolRef = useRef(activeInsertTool);
@@ -197,6 +200,30 @@ function App() {
     }
   }, [editAndRender]);
 
+  const handleResetSlurSelected = useCallback(async () => {
+    if (!isEditModeRef.current || activeInsertToolRef.current) {
+      return;
+    }
+    if (loadingRef.current || editingRef.current) {
+      return;
+    }
+    const slurId = selectedSlurIdRef.current;
+    if (!slurId) {
+      return;
+    }
+    const overlay = activeSlurOverlay();
+    if (!canResetSlurSelection(overlay, slurId, selectedNoteIdsRef.current, selectedBeamIdRef.current)) {
+      return;
+    }
+    pendingSlurCurveRef.current = null;
+    setSlurDraftClearToken((token) => token + 1);
+    const action = buildSchenkerSlurResetAction(slurId);
+    if (import.meta.env.DEV) {
+      console.log('[s5b1] schenkerSlurReset payload', action);
+    }
+    await editAndRender(action);
+  }, [editAndRender]);
+
   const pendingSlurCurveRef = useRef<{ slurId: string; points: SlurBezierPoints } | null>(null);
   const slurCurveBusyRef = useRef(false);
 
@@ -252,6 +279,13 @@ function App() {
     }
     return canSlurSelection(activeSlurOverlay(), selectedNoteIds);
   }, [isEditMode, activeInsertTool, selectedNoteIds, svg]);
+
+  const resetSlurEnabled = useMemo(() => {
+    if (!isEditMode || activeInsertTool) {
+      return false;
+    }
+    return canResetSlurSelection(activeSlurOverlay(), selectedSlurId, selectedNoteIds, selectedBeamId);
+  }, [isEditMode, activeInsertTool, selectedSlurId, selectedNoteIds, selectedBeamId, svg]);
 
   const selectedCount =
     selectedNoteIds.length + (selectedBeamId ? 1 : 0) + (selectedSlurId ? 1 : 0);
@@ -463,6 +497,7 @@ function App() {
               selectedNoteIds={selectedNoteIds}
               selectedBeamId={selectedBeamId}
               selectedSlurId={selectedSlurId}
+              slurDraftClearToken={slurDraftClearToken}
               onScoreClick={handleScoreClick}
               onSlurCurveCommit={handleSlurCurveCommit}
               onZoomReady={(zoom) => setZoomHandler(zoom)}
@@ -504,6 +539,11 @@ function App() {
                   void handleSlurSelected();
                 }}
                 slurDisabled={loading || editing || Boolean(activeInsertTool) || Boolean(error)}
+                resetSlurEnabled={resetSlurEnabled}
+                onResetSlurSelected={() => {
+                  void handleResetSlurSelected();
+                }}
+                resetSlurDisabled={loading || editing || Boolean(activeInsertTool) || Boolean(error)}
               />
             </div>
             <div id="undoRedo_controls" style={isEditMode ? undefined : { opacity: 0.55, pointerEvents: 'none' }}>
