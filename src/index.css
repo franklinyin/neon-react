@@ -160,6 +160,19 @@ button:focus {
     stroke: #d00;
 }
 
+.slur.schenker-slur-suppressed,
+.slur.schenker-slur-suppressed path {
+    opacity: 0.12;
+    pointer-events: none;
+}
+
+.schenker-slur-preview {
+    fill: none;
+    stroke: #d00;
+    stroke-width: 24;
+    pointer-events: none;
+}
+
 .schenker-slur-handle {
     fill: #fff;
     stroke: #06c;
