@@ -22,7 +22,7 @@ export function buildSchenkerNoteMoveAction(
   };
 }
 
-export function canMoveUnbeamedNote(
+export function canMoveSchenkerNote(
   overlay: SVGSVGElement | null,
   selectedNoteIds: string[],
   noteId: string,
@@ -30,6 +30,5 @@ export function canMoveUnbeamedNote(
   if (!overlay || selectedNoteIds.length !== 1 || selectedNoteIds[0] !== noteId) {
     return false;
   }
-  const note = overlay.querySelector(`#${CSS.escape(noteId)}.note`);
-  return Boolean(note && !note.closest('.beam'));
+  return Boolean(overlay.querySelector(`#${CSS.escape(noteId)}.note`));
 }

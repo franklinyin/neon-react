@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useZoom } from '../hooks/useZoom';
 import { locToY, measureRenderedStaffs, yToLoc } from '../lib/schenker/geometry';
-import { canMoveUnbeamedNote } from '../lib/schenker/move';
+import { canMoveSchenkerNote } from '../lib/schenker/move';
 import { readSlurBezierFromMetadata, type SlurBezierPoints } from '../lib/schenker/slur';
 import {
   buildSlurBezierPathD,
@@ -701,7 +701,7 @@ const ImageViewer: React.FC<{
     if (!overlay || !selection.noteId) {
       return;
     }
-    if (!canMoveUnbeamedNote(overlay, selectedNoteIdsRef.current, selection.noteId)) {
+    if (!canMoveSchenkerNote(overlay, selectedNoteIdsRef.current, selection.noteId)) {
       return;
     }
     const note = overlay.querySelector<SVGGElement>(`#${CSS.escape(selection.noteId)}.note`);

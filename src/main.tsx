@@ -23,6 +23,10 @@ if (import.meta.env.DEV) {
     void import('./lib/verovio/note-move-probe').then(({ runNoteMove }) => {
       void runNoteMove();
     });
+  } else if (params.has('beammove')) {
+    void import('./lib/verovio/beam-note-move-probe').then(({ runBeamNoteMove }) => {
+      void runBeamNoteMove();
+    });
   } else if (params.has('phase5')) {
     void import('./lib/verovio/phase5-probe').then(({ runPhase5 }) => {
       void runPhase5();
