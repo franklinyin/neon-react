@@ -24,6 +24,7 @@ import {
 } from './lib/schenker/slur';
 import { createMeiBlob, downloadMei } from './lib/mei/downloadMei';
 import { readLocalMeiFile } from './lib/mei/openMei';
+import { buildSchenkerLabelAction, canLabelSelection } from './lib/schenker/label';
 import { buildSchenkerNoteMoveAction } from './lib/schenker/move';
 
 const CF005_IMAGE = '/samples/CF-005.png';
@@ -269,6 +270,48 @@ function App() {
     void editAndRender(action);
   }, [editAndRender]);
 
+  const addLabelToSelectedNote = useCallback(async (text: string) => {
+    if (!isEditModeRef.current || activeInsertToolRef.current) {
+      return;
+    }
+    if (loadingRef.current || editingRef.current) {
+      return;
+    }
+    const noteId = selectedNoteIdsRef.current[0];
+    if (!noteId || selectedNoteIdsRef.current.length !== 1) {
+      return;
+    }
+    const action = buildSchenkerLabelAction(noteId, text);
+    if (import.meta.env.DEV) {
+      console.log('[l1] schenkerLabel payload', action);
+    }
+    await editAndRender(action);
+  }, [editAndRender]);
+
+  const handleNumberLabel = useCallback(() => {
+    const value = window.prompt('Number', '3');
+    if (value == null) {
+      return;
+    }
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return;
+    }
+    void addLabelToSelectedNote(trimmed);
+  }, [addLabelToSelectedNote]);
+
+  const handleTextLabel = useCallback(() => {
+    const value = window.prompt('Text', '');
+    if (value == null) {
+      return;
+    }
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return;
+    }
+    void addLabelToSelectedNote(trimmed);
+  }, [addLabelToSelectedNote]);
+
   const beamEnabled = useMemo(() => {
     if (!isEditMode || activeInsertTool) {
       return false;
@@ -296,6 +339,13 @@ function App() {
     }
     return Boolean(selectedSlurId) && selectedNoteIds.length === 0 && !selectedBeamId;
   }, [isEditMode, activeInsertTool, selectedSlurId, selectedNoteIds, selectedBeamId]);
+
+  const labelEnabled = useMemo(() => {
+    if (!isEditMode || activeInsertTool) {
+      return false;
+    }
+    return canLabelSelection(activeScoreOverlay(), selectedNoteIds, selectedBeamId, selectedSlurId);
+  }, [isEditMode, activeInsertTool, selectedNoteIds, selectedBeamId, selectedSlurId, svg]);
 
   const selectedCount =
     selectedNoteIds.length + (selectedBeamId ? 1 : 0) + (selectedSlurId ? 1 : 0);
@@ -580,6 +630,10 @@ function App() {
                   void handleResetSlur();
                 }}
                 resetSlurDisabled={loading || editing || Boolean(activeInsertTool) || Boolean(error)}
+                labelEnabled={labelEnabled}
+                onNumberLabel={handleNumberLabel}
+                onTextLabel={handleTextLabel}
+                labelDisabled={loading || editing || Boolean(activeInsertTool) || Boolean(error)}
               />
             </div>
             <div id="undoRedo_controls" style={isEditMode ? undefined : { opacity: 0.55, pointerEvents: 'none' }}>

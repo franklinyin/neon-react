@@ -18,6 +18,10 @@ type EditPanelProps = {
   resetSlurEnabled?: boolean;
   onResetSlur?: () => void;
   resetSlurDisabled?: boolean;
+  labelEnabled?: boolean;
+  onNumberLabel?: () => void;
+  onTextLabel?: () => void;
+  labelDisabled?: boolean;
 };
 
 export default function EditPanel({
@@ -37,6 +41,10 @@ export default function EditPanel({
   resetSlurEnabled = false,
   onResetSlur,
   resetSlurDisabled = false,
+  labelEnabled = false,
+  onNumberLabel,
+  onTextLabel,
+  labelDisabled = false,
 }: EditPanelProps) {
   const [isOpen, setIsOpen] = useState(true);
   const [selectBy, setSelectBy] = useState<'syllable' | 'neume' | 'nc' | 'staff'>('syllable');
@@ -45,6 +53,7 @@ export default function EditPanel({
   const canFlip = enabled && flipEnabled && !flipDisabled;
   const canSlur = enabled && slurEnabled && !slurDisabled;
   const canResetSlur = enabled && resetSlurEnabled && !resetSlurDisabled;
+  const canLabel = enabled && labelEnabled && !labelDisabled;
 
   return (
     <div className="panel" style={enabled ? undefined : { opacity: 0.55 }}>
@@ -153,6 +162,28 @@ export default function EditPanel({
                 onClick={onResetSlur}
               >
                 Reset Slur
+              </button>
+            </p>
+            <p className="control">
+              <button
+                type="button"
+                className="button"
+                id="labelNumber"
+                disabled={!canLabel}
+                onClick={onNumberLabel}
+              >
+                Number
+              </button>
+            </p>
+            <p className="control">
+              <button
+                type="button"
+                className="button"
+                id="labelText"
+                disabled={!canLabel}
+                onClick={onTextLabel}
+              >
+                Text
               </button>
             </p>
             <a id="moreEdit" className="panel-block is-invisible"></a>
