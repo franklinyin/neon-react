@@ -24,7 +24,7 @@ import {
 } from './lib/schenker/slur';
 import { createMeiBlob, downloadMei } from './lib/mei/downloadMei';
 import { readLocalMeiFile } from './lib/mei/openMei';
-import { buildSchenkerLabelAction, canLabelSelection } from './lib/schenker/label';
+import { buildSchenkerLabelAction, buildSchenkerLabelOffsetAction, canLabelSelection } from './lib/schenker/label';
 import { buildSchenkerNoteMoveAction } from './lib/schenker/move';
 
 const CF005_IMAGE = '/samples/CF-005.png';
@@ -273,6 +273,28 @@ function App() {
       console.log('[note-move] schenkerNoteMove payload', action);
     }
     void editAndRender(action);
+  }, [editAndRender]);
+
+  const handleLabelOffsetCommit = useCallback((
+    labelId: string,
+    from: ScorePoint,
+    to: ScorePoint,
+  ) => {
+    if (!isEditModeRef.current || activeInsertToolRef.current) {
+      return;
+    }
+    if (loadingRef.current || editingRef.current) {
+      return;
+    }
+    const action = buildSchenkerLabelOffsetAction(labelId, from, to);
+    if (import.meta.env.DEV) {
+      console.log('[l2b] schenkerLabelOffset payload', action);
+    }
+    void editAndRender(action).then((ok) => {
+      if (!ok) {
+        console.error('[l2b] schenkerLabelOffset failed', action);
+      }
+    });
   }, [editAndRender]);
 
   const addLabelToSelectedNote = useCallback(async (text: string) => {
@@ -605,6 +627,7 @@ function App() {
               onScoreClick={handleScoreClick}
               onSlurCurveCommit={handleSlurCurveCommit}
               onNoteMoveCommit={handleNoteMoveCommit}
+              onLabelOffsetCommit={handleLabelOffsetCommit}
               noteDragEnabled={isEditMode && !activeInsertTool && !loading && !editing}
               onZoomReady={(zoom) => setZoomHandler(zoom)}
             />

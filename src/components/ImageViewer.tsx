@@ -383,6 +383,11 @@ const ImageViewer: React.FC<{
   onScoreClick?: (hit: ScoreHit) => void;
   onSlurCurveCommit?: (slurId: string, points: SlurBezierPoints) => void;
   onNoteMoveCommit?: (noteId: string, loc: number, schenkerX: number) => void;
+  onLabelOffsetCommit?: (
+    labelId: string,
+    from: ScorePoint,
+    to: ScorePoint,
+  ) => void;
   noteDragEnabled?: boolean;
   onZoomReady?: (zoom: ReturnType<typeof useZoom>) => void;
 }> = ({
@@ -395,6 +400,7 @@ const ImageViewer: React.FC<{
   onScoreClick,
   onSlurCurveCommit,
   onNoteMoveCommit,
+  onLabelOffsetCommit,
   noteDragEnabled = false,
   onZoomReady,
 }) => {
@@ -425,6 +431,8 @@ const ImageViewer: React.FC<{
     grabDy: number;
     originX: number;
     originY: number;
+    fromX: number;
+    fromY: number;
   } | null>(null);
   const labelDidDragRef = useRef(false);
   const setLabelLocalDraft = useCallback((draft: LabelLocalDraft | null) => {
@@ -439,6 +447,8 @@ const ImageViewer: React.FC<{
   onSlurCurveCommitRef.current = onSlurCurveCommit;
   const onNoteMoveCommitRef = useRef(onNoteMoveCommit);
   onNoteMoveCommitRef.current = onNoteMoveCommit;
+  const onLabelOffsetCommitRef = useRef(onLabelOffsetCommit);
+  onLabelOffsetCommitRef.current = onLabelOffsetCommit;
   const noteDragEnabledRef = useRef(noteDragEnabled);
   noteDragEnabledRef.current = noteDragEnabled;
   const noteDragRef = useRef<{
@@ -796,6 +806,8 @@ const ImageViewer: React.FC<{
         grabDy: current.y - point.y,
         originX: point.x,
         originY: point.y,
+        fromX: current.x,
+        fromY: current.y,
       };
       return;
     }
@@ -988,11 +1000,19 @@ const ImageViewer: React.FC<{
       const point = clientToPageCoords(svgRef.current, e.clientX, e.clientY);
       labelDragRef.current = null;
       if (labelDidDragRef.current && point) {
-        setLabelLocalDraft({
-          labelId: labelDrag.labelId,
+        const to = {
           x: point.x + labelDrag.grabDx,
           y: point.y + labelDrag.grabDy,
+        };
+        setLabelLocalDraft({
+          labelId: labelDrag.labelId,
+          x: to.x,
+          y: to.y,
         });
+        onLabelOffsetCommitRef.current?.(labelDrag.labelId, {
+          x: labelDrag.fromX,
+          y: labelDrag.fromY,
+        }, to);
       }
       isDraggingRef.current = false;
       dragStartDataRef.current = null;

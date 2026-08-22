@@ -18,6 +18,30 @@ export function buildSchenkerLabelAction(noteId: string, text: string): VerovioE
   };
 }
 
+export function buildSchenkerLabelOffsetAction(
+  elementId: string,
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+): VerovioEditorAction {
+  const id = elementId.trim();
+  if (!id) {
+    throw new Error('schenkerLabelOffset requires an elementId');
+  }
+  if (![from.x, from.y, to.x, to.y].every(Number.isFinite)) {
+    throw new Error('schenkerLabelOffset requires finite from/to coordinates');
+  }
+  return {
+    action: 'schenkerLabelOffset',
+    param: {
+      elementId: id,
+      fromX: Math.round(from.x),
+      fromY: Math.round(from.y),
+      toX: Math.round(to.x),
+      toY: Math.round(to.y),
+    },
+  };
+}
+
 export function canLabelSelection(
   overlay: SVGSVGElement | null,
   selectedNoteIds: string[],
