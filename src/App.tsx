@@ -57,7 +57,18 @@ function App() {
   const [selectedBeamId, setSelectedBeamId] = useState<string | null>(null);
   const [selectedSlurId, setSelectedSlurId] = useState<string | null>(null);
   const [slurDraftClearToken, setSlurDraftClearToken] = useState(0);
-  const { svg, loading, editing, error, editAndRender, getMEI } = useVerovioScore(CF005_MEI);
+  const {
+    svg,
+    loading,
+    editing,
+    error,
+    canUndo,
+    canRedo,
+    editAndRender,
+    undoAndRender,
+    redoAndRender,
+    getMEI,
+  } = useVerovioScore(CF005_MEI);
   const isEditModeRef = useRef(isEditMode);
   const activeInsertToolRef = useRef(activeInsertTool);
   const selectedNoteIdsRef = useRef(selectedNoteIds);
@@ -200,6 +211,9 @@ function App() {
     }
   }, [editAndRender]);
 
+  const pendingSlurCurveRef = useRef<{ slurId: string; points: SlurBezierPoints } | null>(null);
+  const slurCurveBusyRef = useRef(false);
+
   const handleResetSlurSelected = useCallback(async () => {
     if (!isEditModeRef.current || activeInsertToolRef.current) {
       return;
@@ -224,8 +238,42 @@ function App() {
     await editAndRender(action);
   }, [editAndRender]);
 
-  const pendingSlurCurveRef = useRef<{ slurId: string; points: SlurBezierPoints } | null>(null);
-  const slurCurveBusyRef = useRef(false);
+  const clearEditorSelectionState = useCallback(() => {
+    pendingSlurCurveRef.current = null;
+    setSelectedNoteIds([]);
+    setSelectedBeamId(null);
+    setSelectedSlurId(null);
+    setActiveInsertTool(null);
+    setSlurDraftClearToken((token) => token + 1);
+  }, []);
+
+  const handleUndo = useCallback(async () => {
+    if (!isEditModeRef.current) {
+      return;
+    }
+    if (loadingRef.current || editingRef.current) {
+      return;
+    }
+    if (!canUndo) {
+      return;
+    }
+    clearEditorSelectionState();
+    await undoAndRender();
+  }, [canUndo, clearEditorSelectionState, undoAndRender]);
+
+  const handleRedo = useCallback(async () => {
+    if (!isEditModeRef.current) {
+      return;
+    }
+    if (loadingRef.current || editingRef.current) {
+      return;
+    }
+    if (!canRedo) {
+      return;
+    }
+    clearEditorSelectionState();
+    await redoAndRender();
+  }, [canRedo, clearEditorSelectionState, redoAndRender]);
 
   const flushSlurCurveCommit = useCallback(async () => {
     if (slurCurveBusyRef.current) {
@@ -299,8 +347,42 @@ function App() {
         setActiveInsertTool(null);
         setSelectedNoteIds([]);
         setSelectedBeamId(null);
+        setSelectedSlurId(null);
         return;
       }
+
+      const mod = event.metaKey || event.ctrlKey;
+      if (mod && event.key.toLowerCase() === 'z' && !event.altKey) {
+        if (!isEditModeRef.current || loadingRef.current || editingRef.current) {
+          return;
+        }
+        if (event.shiftKey) {
+          if (!canRedo) {
+            return;
+          }
+          event.preventDefault();
+          void handleRedo();
+          return;
+        }
+        if (!canUndo) {
+          return;
+        }
+        event.preventDefault();
+        void handleUndo();
+        return;
+      }
+      if (event.ctrlKey && !event.metaKey && !event.altKey && event.key.toLowerCase() === 'y') {
+        if (!isEditModeRef.current || loadingRef.current || editingRef.current) {
+          return;
+        }
+        if (!canRedo) {
+          return;
+        }
+        event.preventDefault();
+        void handleRedo();
+        return;
+      }
+
       if (event.key !== 'Delete' && event.key !== 'Backspace') {
         return;
       }
@@ -322,7 +404,7 @@ function App() {
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [handleDeleteSelected]);
+  }, [handleDeleteSelected, handleUndo, handleRedo, canUndo, canRedo]);
 
   const handleScoreClick = useCallback(
     (hit: ScoreHit) => {
@@ -547,7 +629,20 @@ function App() {
               />
             </div>
             <div id="undoRedo_controls" style={isEditMode ? undefined : { opacity: 0.55, pointerEvents: 'none' }}>
-              <UndoRedoPanel />
+              <UndoRedoPanel
+                onUndo={() => {
+                  void handleUndo();
+                }}
+                onRedo={() => {
+                  void handleRedo();
+                }}
+                undoDisabled={
+                  !isEditMode || loading || editing || Boolean(error) || !canUndo
+                }
+                redoDisabled={
+                  !isEditMode || loading || editing || Boolean(error) || !canRedo
+                }
+              />
             </div>
           </div>
           <div id="neume_info"></div>

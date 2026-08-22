@@ -11,7 +11,11 @@ export type VerovioScoreState = {
   loading: boolean;
   editing: boolean;
   error: string | null;
+  canUndo: boolean;
+  canRedo: boolean;
   editAndRender: (action: VerovioEditorAction) => Promise<boolean>;
+  undoAndRender: () => Promise<boolean>;
+  redoAndRender: () => Promise<boolean>;
   getMEI: () => Promise<string>;
 };
 
@@ -28,15 +32,29 @@ type Phase2BDevReport = {
 /**
  * One Verovio toolkit session for the mounted score.
  * Musical source of truth stays in the worker; React only holds the current SVG.
+ * Undo/Redo history lives in Verovio — this hook only mirrors canUndo/canRedo.
  */
 export function useVerovioScore(meiUrl: string): VerovioScoreState {
   const [svg, setSvg] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
   const clientRef = useRef<VerovioClient | null>(null);
   const editingRef = useRef(false);
   const sessionRef = useRef(0);
+
+  const refreshHistoryFlags = useCallback(async (client: VerovioClient): Promise<void> => {
+    try {
+      const flags = await client.getHistoryFlags();
+      setCanUndo(flags.canUndo);
+      setCanRedo(flags.canRedo);
+    } catch {
+      setCanUndo(false);
+      setCanRedo(false);
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -49,6 +67,8 @@ export function useVerovioScore(meiUrl: string): VerovioScoreState {
     editingRef.current = false;
     setError(null);
     setSvg(null);
+    setCanUndo(false);
+    setCanRedo(false);
 
     void (async () => {
       try {
@@ -117,6 +137,10 @@ export function useVerovioScore(meiUrl: string): VerovioScoreState {
           console.log('[phase2b] prepare/idempotence', report);
         }
 
+        await refreshHistoryFlags(client);
+        if (cancelled) {
+          return;
+        }
         setSvg(svgText);
         setLoading(false);
       } catch (err) {
@@ -140,7 +164,48 @@ export function useVerovioScore(meiUrl: string): VerovioScoreState {
         clientRef.current = null;
       }
     };
-  }, [meiUrl]);
+  }, [meiUrl, refreshHistoryFlags]);
+
+  const runHistoryAndRender = useCallback(
+    async (kind: 'undo' | 'redo'): Promise<boolean> => {
+      const client = clientRef.current;
+      const session = sessionRef.current;
+      if (!client || editingRef.current) {
+        return false;
+      }
+      editingRef.current = true;
+      setEditing(true);
+      try {
+        const ok = kind === 'undo' ? await client.undo() : await client.redo();
+        if (!ok) {
+          throw new Error(`Verovio ${kind} returned false`);
+        }
+        // Do not call renderData(): restore already lives in the toolkit.
+        const svgText = await client.renderToSVG(1);
+        if (sessionRef.current !== session) {
+          return false;
+        }
+        await refreshHistoryFlags(client);
+        if (sessionRef.current !== session) {
+          return false;
+        }
+        setSvg(svgText);
+        return true;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        if (!message.includes('disposed')) {
+          console.error(`[s5b2b] ${kind}AndRender failed`, err);
+        }
+        return false;
+      } finally {
+        editingRef.current = false;
+        if (sessionRef.current === session) {
+          setEditing(false);
+        }
+      }
+    },
+    [refreshHistoryFlags],
+  );
 
   const editAndRender = useCallback(async (action: VerovioEditorAction): Promise<boolean> => {
     const client = clientRef.current;
@@ -161,6 +226,10 @@ export function useVerovioScore(meiUrl: string): VerovioScoreState {
       if (sessionRef.current !== session) {
         return false;
       }
+      await refreshHistoryFlags(client);
+      if (sessionRef.current !== session) {
+        return false;
+      }
       setSvg(svgText);
       return true;
     } catch (err) {
@@ -175,7 +244,15 @@ export function useVerovioScore(meiUrl: string): VerovioScoreState {
         setEditing(false);
       }
     }
-  }, []);
+  }, [refreshHistoryFlags]);
+
+  const undoAndRender = useCallback((): Promise<boolean> => {
+    return runHistoryAndRender('undo');
+  }, [runHistoryAndRender]);
+
+  const redoAndRender = useCallback((): Promise<boolean> => {
+    return runHistoryAndRender('redo');
+  }, [runHistoryAndRender]);
 
   const getMEI = useCallback(async (): Promise<string> => {
     const client = clientRef.current;
@@ -188,5 +265,16 @@ export function useVerovioScore(meiUrl: string): VerovioScoreState {
     return client.getMEI();
   }, []);
 
-  return { svg, loading, editing, error, editAndRender, getMEI };
+  return {
+    svg,
+    loading,
+    editing,
+    error,
+    canUndo,
+    canRedo,
+    editAndRender,
+    undoAndRender,
+    redoAndRender,
+    getMEI,
+  };
 }

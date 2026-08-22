@@ -3,6 +3,16 @@ export type VerovioEditorAction = {
   param?: unknown;
 };
 
+export type VerovioEditInfo = {
+  canUndo?: boolean;
+  canRedo?: boolean;
+  status?: string;
+  uuid?: string;
+  chainedId?: string;
+  isMensuralMusicOnly?: boolean;
+  message?: string;
+};
+
 type PendingRequest = {
   resolve: (value: WorkerResult) => void;
   reject: (reason: Error) => void;
@@ -102,14 +112,30 @@ export class VerovioClient {
     return Boolean(response.result);
   }
 
+  async undo(): Promise<boolean> {
+    return this.edit({ action: 'undo' });
+  }
+
+  async redo(): Promise<boolean> {
+    return this.edit({ action: 'redo' });
+  }
+
   async getElementAttr(elementId: string): Promise<Record<string, string>> {
     const response = await this.request('getElementAttr', { elementId });
     return response.attributes || {};
   }
 
-  async editInfo(): Promise<unknown> {
+  async editInfo(): Promise<VerovioEditInfo> {
     const response = await this.request('editInfo');
-    return response.info;
+    return (response.info || {}) as VerovioEditInfo;
+  }
+
+  async getHistoryFlags(): Promise<{ canUndo: boolean; canRedo: boolean }> {
+    const info = await this.editInfo();
+    return {
+      canUndo: Boolean(info.canUndo),
+      canRedo: Boolean(info.canRedo),
+    };
   }
 
   dispose(): void {
