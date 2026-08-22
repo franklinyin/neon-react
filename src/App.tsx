@@ -58,12 +58,14 @@ function App() {
   const [selectedNoteIds, setSelectedNoteIds] = useState<string[]>([]);
   const [selectedBeamId, setSelectedBeamId] = useState<string | null>(null);
   const [selectedSlurId, setSelectedSlurId] = useState<string | null>(null);
+  const [selectedLabelId, setSelectedLabelId] = useState<string | null>(null);
   const { svg, loading, editing, error, editAndRender, getMEI, loadMei } = useVerovioScore(CF005_MEI);
   const isEditModeRef = useRef(isEditMode);
   const activeInsertToolRef = useRef(activeInsertTool);
   const selectedNoteIdsRef = useRef(selectedNoteIds);
   const selectedBeamIdRef = useRef(selectedBeamId);
   const selectedSlurIdRef = useRef(selectedSlurId);
+  const selectedLabelIdRef = useRef(selectedLabelId);
   const editingRef = useRef(editing);
   const loadingRef = useRef(loading);
   const downloadingRef = useRef(false);
@@ -74,6 +76,7 @@ function App() {
   selectedNoteIdsRef.current = selectedNoteIds;
   selectedBeamIdRef.current = selectedBeamId;
   selectedSlurIdRef.current = selectedSlurId;
+  selectedLabelIdRef.current = selectedLabelId;
   editingRef.current = editing;
   loadingRef.current = loading;
 
@@ -87,6 +90,7 @@ function App() {
     setSelectedNoteIds([]);
     setSelectedBeamId(null);
     setSelectedSlurId(null);
+    setSelectedLabelId(null);
   }, []);
 
   const handleInsertToolChange = useCallback((tool: InsertTool) => {
@@ -98,6 +102,7 @@ function App() {
       setSelectedNoteIds([]);
       setSelectedBeamId(null);
       setSelectedSlurId(null);
+      setSelectedLabelId(null);
     }
   }, []);
 
@@ -337,18 +342,18 @@ function App() {
     if (!isEditMode || activeInsertTool) {
       return false;
     }
-    return Boolean(selectedSlurId) && selectedNoteIds.length === 0 && !selectedBeamId;
-  }, [isEditMode, activeInsertTool, selectedSlurId, selectedNoteIds, selectedBeamId]);
+    return Boolean(selectedSlurId) && selectedNoteIds.length === 0 && !selectedBeamId && !selectedLabelId;
+  }, [isEditMode, activeInsertTool, selectedSlurId, selectedNoteIds, selectedBeamId, selectedLabelId]);
 
   const labelEnabled = useMemo(() => {
     if (!isEditMode || activeInsertTool) {
       return false;
     }
-    return canLabelSelection(activeScoreOverlay(), selectedNoteIds, selectedBeamId, selectedSlurId);
-  }, [isEditMode, activeInsertTool, selectedNoteIds, selectedBeamId, selectedSlurId, svg]);
+    return canLabelSelection(activeScoreOverlay(), selectedNoteIds, selectedBeamId, selectedSlurId, selectedLabelId);
+  }, [isEditMode, activeInsertTool, selectedNoteIds, selectedBeamId, selectedSlurId, selectedLabelId, svg]);
 
   const selectedCount =
-    selectedNoteIds.length + (selectedBeamId ? 1 : 0) + (selectedSlurId ? 1 : 0);
+    selectedNoteIds.length + (selectedBeamId ? 1 : 0) + (selectedSlurId ? 1 : 0) + (selectedLabelId ? 1 : 0);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -359,6 +364,8 @@ function App() {
         setActiveInsertTool(null);
         setSelectedNoteIds([]);
         setSelectedBeamId(null);
+        setSelectedSlurId(null);
+        setSelectedLabelId(null);
         return;
       }
       if (event.key !== 'Delete' && event.key !== 'Backspace') {
@@ -447,27 +454,38 @@ function App() {
       }
 
       // Selection mode (default while Edit MEI is active and no insert tool).
+      if (hit.labelId) {
+        setSelectedLabelId(hit.labelId);
+        setSelectedNoteIds([]);
+        setSelectedBeamId(null);
+        setSelectedSlurId(null);
+        return;
+      }
       if (hit.beamId) {
         setSelectedBeamId(hit.beamId);
         setSelectedNoteIds([]);
         setSelectedSlurId(null);
+        setSelectedLabelId(null);
         return;
       }
       if (hit.slurId) {
         setSelectedSlurId(hit.slurId);
         setSelectedNoteIds([]);
         setSelectedBeamId(null);
+        setSelectedLabelId(null);
         return;
       }
       if (!hit.noteId) {
         setSelectedNoteIds([]);
         setSelectedBeamId(null);
         setSelectedSlurId(null);
+        setSelectedLabelId(null);
         return;
       }
       const noteId = hit.noteId;
       setSelectedBeamId(null);
       setSelectedSlurId(null);
+      setSelectedLabelId(null);
       if (hit.additive) {
         setSelectedNoteIds((current) =>
           current.includes(noteId) ? current.filter((id) => id !== noteId) : [...current, noteId],
@@ -527,6 +545,7 @@ function App() {
       setSelectedNoteIds([]);
       setSelectedBeamId(null);
       setSelectedSlurId(null);
+      setSelectedLabelId(null);
     } catch (err) {
       console.error('[open-mei] failed', err);
     }
@@ -582,6 +601,7 @@ function App() {
               selectedNoteIds={selectedNoteIds}
               selectedBeamId={selectedBeamId}
               selectedSlurId={selectedSlurId}
+              selectedLabelId={selectedLabelId}
               onScoreClick={handleScoreClick}
               onSlurCurveCommit={handleSlurCurveCommit}
               onNoteMoveCommit={handleNoteMoveCommit}
