@@ -15,6 +15,10 @@ if (import.meta.env.DEV) {
     void import('./lib/verovio/recovery-s5a-probe').then(({ runRecoveryS5A }) => {
       void runRecoveryS5A();
     });
+  } else if (params.has('r3')) {
+    void import('./lib/verovio/r3-reset-slur-probe').then(({ runR3ResetSlur }) => {
+      void runR3ResetSlur();
+    });
   } else if (params.has('phase5')) {
     void import('./lib/verovio/phase5-probe').then(({ runPhase5 }) => {
       void runPhase5();

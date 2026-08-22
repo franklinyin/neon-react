@@ -16,6 +16,7 @@ import { buildFlipAction, canFlipSelection } from './lib/schenker/flip';
 import {
   activeSlurOverlay,
   buildSchenkerSlurCurveAction,
+  buildSchenkerSlurResetAction,
   buildSlurNotesAction,
   canSlurSelection,
   sortNoteIdsByX,
@@ -197,6 +198,25 @@ function App() {
     }
   }, [editAndRender]);
 
+  const handleResetSlur = useCallback(async () => {
+    if (!isEditModeRef.current || activeInsertToolRef.current) {
+      return;
+    }
+    if (loadingRef.current || editingRef.current) {
+      return;
+    }
+    const slurId = selectedSlurIdRef.current;
+    if (!slurId || selectedNoteIdsRef.current.length > 0 || selectedBeamIdRef.current) {
+      return;
+    }
+    pendingSlurCurveRef.current = null;
+    const action = buildSchenkerSlurResetAction(slurId);
+    if (import.meta.env.DEV) {
+      console.log('[r3] schenkerSlurReset payload', action);
+    }
+    await editAndRender(action);
+  }, [editAndRender]);
+
   const pendingSlurCurveRef = useRef<{ slurId: string; points: SlurBezierPoints } | null>(null);
   const slurCurveBusyRef = useRef(false);
 
@@ -252,6 +272,13 @@ function App() {
     }
     return canSlurSelection(activeSlurOverlay(), selectedNoteIds);
   }, [isEditMode, activeInsertTool, selectedNoteIds, svg]);
+
+  const resetSlurEnabled = useMemo(() => {
+    if (!isEditMode || activeInsertTool) {
+      return false;
+    }
+    return Boolean(selectedSlurId) && selectedNoteIds.length === 0 && !selectedBeamId;
+  }, [isEditMode, activeInsertTool, selectedSlurId, selectedNoteIds, selectedBeamId]);
 
   const selectedCount =
     selectedNoteIds.length + (selectedBeamId ? 1 : 0) + (selectedSlurId ? 1 : 0);
@@ -504,6 +531,11 @@ function App() {
                   void handleSlurSelected();
                 }}
                 slurDisabled={loading || editing || Boolean(activeInsertTool) || Boolean(error)}
+                resetSlurEnabled={resetSlurEnabled}
+                onResetSlur={() => {
+                  void handleResetSlur();
+                }}
+                resetSlurDisabled={loading || editing || Boolean(activeInsertTool) || Boolean(error)}
               />
             </div>
             <div id="undoRedo_controls" style={isEditMode ? undefined : { opacity: 0.55, pointerEvents: 'none' }}>

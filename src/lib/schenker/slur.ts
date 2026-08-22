@@ -37,6 +37,17 @@ export function buildSchenkerSlurCurveAction(
   };
 }
 
+export function buildSchenkerSlurResetAction(elementId: string): VerovioEditorAction {
+  const id = elementId.trim();
+  if (!id) {
+    throw new Error('schenkerSlurReset requires a non-empty elementId');
+  }
+  return {
+    action: 'schenkerSlurReset',
+    param: { elementId: id },
+  };
+}
+
 export function isSchenkerNote(overlay: SVGSVGElement | null, noteId: string): boolean {
   if (!overlay || !noteId) {
     return false;

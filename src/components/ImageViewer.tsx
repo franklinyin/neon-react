@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useZoom } from '../hooks/useZoom';
 import { measureRenderedStaffs } from '../lib/schenker/geometry';
-import { readSlurBezierFromMetadata, slurBezierPointsMatch, type SlurBezierPoints } from '../lib/schenker/slur';
+import { readSlurBezierFromMetadata, type SlurBezierPoints } from '../lib/schenker/slur';
 import {
   buildSlurBezierPathD,
   SLUR_HANDLE_LABELS,
@@ -577,15 +577,7 @@ const ImageViewer: React.FC<{
     if (slurDragRef.current) {
       return;
     }
-    const draft = slurLocalDraftRef.current;
-    if (!draft) {
-      return;
-    }
-    const overlay = svgRef.current?.querySelector<SVGSVGElement>('.neon-container.active-page');
-    const rendered = overlay ? readSlurBezierFromMetadata(overlay, draft.slurId) : null;
-    if (rendered && slurBezierPointsMatch(rendered, draft.points)) {
-      setSlurLocalDraft(null);
-    }
+    setSlurLocalDraft(null);
   }, [meiSvg, setSlurLocalDraft]);
 
   useEffect(() => {
