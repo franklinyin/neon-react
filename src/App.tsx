@@ -24,6 +24,7 @@ import {
 } from './lib/schenker/slur';
 import { createMeiBlob, downloadMei } from './lib/mei/downloadMei';
 import { readLocalMeiFile } from './lib/mei/openMei';
+import { buildSchenkerNoteMoveAction } from './lib/schenker/move';
 
 const CF005_IMAGE = '/samples/CF-005.png';
 const CF005_MEI = '/samples/CF-005.mei';
@@ -253,6 +254,20 @@ function App() {
     pendingSlurCurveRef.current = { slurId, points };
     void flushSlurCurveCommit();
   }, [flushSlurCurveCommit]);
+
+  const handleNoteMoveCommit = useCallback((noteId: string, loc: number, schenkerX: number) => {
+    if (!isEditModeRef.current || activeInsertToolRef.current) {
+      return;
+    }
+    if (loadingRef.current || editingRef.current) {
+      return;
+    }
+    const action = buildSchenkerNoteMoveAction(noteId, loc, schenkerX);
+    if (import.meta.env.DEV) {
+      console.log('[note-move] schenkerNoteMove payload', action);
+    }
+    void editAndRender(action);
+  }, [editAndRender]);
 
   const beamEnabled = useMemo(() => {
     if (!isEditMode || activeInsertTool) {
@@ -519,6 +534,8 @@ function App() {
               selectedSlurId={selectedSlurId}
               onScoreClick={handleScoreClick}
               onSlurCurveCommit={handleSlurCurveCommit}
+              onNoteMoveCommit={handleNoteMoveCommit}
+              noteDragEnabled={isEditMode && !activeInsertTool && !loading && !editing}
               onZoomReady={(zoom) => setZoomHandler(zoom)}
             />
           )}

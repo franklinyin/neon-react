@@ -19,6 +19,10 @@ if (import.meta.env.DEV) {
     void import('./lib/verovio/r3-reset-slur-probe').then(({ runR3ResetSlur }) => {
       void runR3ResetSlur();
     });
+  } else if (params.has('notemove')) {
+    void import('./lib/verovio/note-move-probe').then(({ runNoteMove }) => {
+      void runNoteMove();
+    });
   } else if (params.has('phase5')) {
     void import('./lib/verovio/phase5-probe').then(({ runPhase5 }) => {
       void runPhase5();

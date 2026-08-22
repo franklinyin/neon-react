@@ -139,6 +139,10 @@ button:focus {
  * Presentation-only Structural Note highlight. Verovio glyphs follow
  * `color` / `currentColor`. Do not put this class on staff or clef groups.
  */
+.note.selected-schenker-note {
+    cursor: grab;
+}
+
 .note.selected-schenker-note,
 .note.selected-schenker-note use {
     color: #d00;

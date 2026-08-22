@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useZoom } from '../hooks/useZoom';
-import { measureRenderedStaffs } from '../lib/schenker/geometry';
+import { locToY, measureRenderedStaffs, yToLoc } from '../lib/schenker/geometry';
+import { canMoveUnbeamedNote } from '../lib/schenker/move';
 import { readSlurBezierFromMetadata, type SlurBezierPoints } from '../lib/schenker/slur';
 import {
   buildSlurBezierPathD,
@@ -307,6 +308,8 @@ function pageBounds(svgGroup: SVGSVGElement, fallback?: { width: number; height:
  * Displays the manuscript image in the container
  * Based on SingleView.ts - creates SVG with background image
  */
+const NOTE_DRAG_THRESHOLD = 5;
+
 const ImageViewer: React.FC<{
   imagePath?: string;
   meiSvg?: string | null;
@@ -315,6 +318,8 @@ const ImageViewer: React.FC<{
   selectedSlurId?: string | null;
   onScoreClick?: (hit: ScoreHit) => void;
   onSlurCurveCommit?: (slurId: string, points: SlurBezierPoints) => void;
+  onNoteMoveCommit?: (noteId: string, loc: number, schenkerX: number) => void;
+  noteDragEnabled?: boolean;
   onZoomReady?: (zoom: ReturnType<typeof useZoom>) => void;
 }> = ({
   imagePath = '/SK-001.png',
@@ -324,6 +329,8 @@ const ImageViewer: React.FC<{
   selectedSlurId = null,
   onScoreClick,
   onSlurCurveCommit,
+  onNoteMoveCommit,
+  noteDragEnabled = false,
   onZoomReady,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -349,6 +356,20 @@ const ImageViewer: React.FC<{
   const slurDidDragRef = useRef(false);
   const onSlurCurveCommitRef = useRef(onSlurCurveCommit);
   onSlurCurveCommitRef.current = onSlurCurveCommit;
+  const onNoteMoveCommitRef = useRef(onNoteMoveCommit);
+  onNoteMoveCommitRef.current = onNoteMoveCommit;
+  const noteDragEnabledRef = useRef(noteDragEnabled);
+  noteDragEnabledRef.current = noteDragEnabled;
+  const noteDragRef = useRef<{
+    noteId: string;
+    staffId: string;
+    origTransform: string;
+    centerX: number;
+    centerY: number;
+    startX: number;
+    startY: number;
+  } | null>(null);
+  const noteDidDragRef = useRef(false);
 
   const setSlurLocalDraft = useCallback((draft: SlurLocalDraft | null) => {
     slurLocalDraftRef.current = draft;
@@ -621,7 +642,39 @@ const ImageViewer: React.FC<{
         isDraggingRef.current = true;
         didPanRef.current = false;
       }
+      return;
     }
+    if (e.button !== 0 || !svgRef.current) {
+      return;
+    }
+    if (!noteDragEnabledRef.current) {
+      return;
+    }
+    const overlay = svgRef.current.querySelector<SVGSVGElement>('.neon-container.active-page');
+    const selection = selectionFromEvent(e);
+    if (!overlay || !selection.noteId) {
+      return;
+    }
+    if (!canMoveUnbeamedNote(overlay, selectedNoteIdsRef.current, selection.noteId)) {
+      return;
+    }
+    const note = overlay.querySelector<SVGGElement>(`#${CSS.escape(selection.noteId)}.note`);
+    const staff = note?.closest<SVGGElement>('.staff');
+    const point = clientToPageCoords(svgRef.current, e.clientX, e.clientY);
+    if (!note || !staff?.id || !point) {
+      return;
+    }
+    const box = note.getBBox();
+    noteDidDragRef.current = false;
+    noteDragRef.current = {
+      noteId: selection.noteId,
+      staffId: staff.id,
+      origTransform: note.getAttribute('transform') || '',
+      centerX: box.x + box.width / 2,
+      centerY: box.y + box.height / 2,
+      startX: point.x,
+      startY: point.y,
+    };
   }, [zoom]);
 
   const handleClick = useCallback((e: React.MouseEvent) => {
@@ -640,6 +693,10 @@ const ImageViewer: React.FC<{
     }
     if (slurDidDragRef.current) {
       slurDidDragRef.current = false;
+      return;
+    }
+    if (noteDidDragRef.current) {
+      noteDidDragRef.current = false;
       return;
     }
     const svg = svgRef.current;
@@ -712,6 +769,34 @@ const ImageViewer: React.FC<{
   }, [setSlurLocalDraft]);
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
+    const noteDrag = noteDragRef.current;
+    if (noteDrag && svgRef.current) {
+      const overlay = svgRef.current.querySelector<SVGSVGElement>('.neon-container.active-page');
+      const note = overlay?.querySelector<SVGGElement>(`#${CSS.escape(noteDrag.noteId)}.note`);
+      const staff = overlay?.querySelector<SVGGElement>(`#${CSS.escape(noteDrag.staffId)}.staff`);
+      const point = clientToPageCoords(svgRef.current, e.clientX, e.clientY);
+      if (!note || !staff || !point) {
+        return;
+      }
+      const moved = Math.hypot(point.x - noteDrag.startX, point.y - noteDrag.startY);
+      if (moved >= NOTE_DRAG_THRESHOLD) {
+        noteDidDragRef.current = true;
+      }
+      if (!noteDidDragRef.current) {
+        return;
+      }
+      e.preventDefault();
+      const loc = yToLoc(point.y, staff);
+      const snappedY = locToY(loc, staff);
+      if (!Number.isFinite(loc) || !Number.isFinite(snappedY)) {
+        return;
+      }
+      const dx = point.x - noteDrag.centerX;
+      const dy = snappedY - noteDrag.centerY;
+      const orig = noteDrag.origTransform;
+      note.setAttribute('transform', orig ? `translate(${dx} ${dy}) ${orig}` : `translate(${dx} ${dy})`);
+      return;
+    }
     if (isDraggingRef.current && dragStartDataRef.current) {
       e.preventDefault();
       didPanRef.current = true;
@@ -725,7 +810,33 @@ const ImageViewer: React.FC<{
     }
   }, [zoom]);
 
-  const handleMouseUp = useCallback(() => {
+  const handleMouseUp = useCallback((e: MouseEvent) => {
+    const noteDrag = noteDragRef.current;
+    if (noteDrag && svgRef.current) {
+      const overlay = svgRef.current.querySelector<SVGSVGElement>('.neon-container.active-page');
+      const note = overlay?.querySelector<SVGGElement>(`#${CSS.escape(noteDrag.noteId)}.note`);
+      const staff = overlay?.querySelector<SVGGElement>(`#${CSS.escape(noteDrag.staffId)}.staff`);
+      const point = clientToPageCoords(svgRef.current, e.clientX, e.clientY);
+      noteDragRef.current = null;
+      if (!noteDidDragRef.current) {
+        if (note) {
+          if (noteDrag.origTransform) {
+            note.setAttribute('transform', noteDrag.origTransform);
+          } else {
+            note.removeAttribute('transform');
+          }
+        }
+        isDraggingRef.current = false;
+        dragStartDataRef.current = null;
+        return;
+      }
+      if (note && staff && point) {
+        const loc = yToLoc(point.y, staff);
+        if (Number.isFinite(loc)) {
+          onNoteMoveCommitRef.current?.(noteDrag.noteId, loc, point.x);
+        }
+      }
+    }
     isDraggingRef.current = false;
     dragStartDataRef.current = null;
   }, []);

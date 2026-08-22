@@ -121,3 +121,17 @@ export function yToLoc(y: number, staff: SVGGElement): number {
   }
   return Math.round((bbox.lry - y) / halfSpace);
 }
+
+/** Inverse of yToLoc: staff Y for a discrete loc. */
+export function locToY(loc: number, staff: SVGGElement): number {
+  const bbox = getStaffBBox(staff);
+  if (!bbox) {
+    return NaN;
+  }
+  const staffSpace = (bbox.lry - bbox.uly) / 4;
+  const halfSpace = staffSpace / 2;
+  if (!Number.isFinite(staffSpace) || halfSpace === 0) {
+    return NaN;
+  }
+  return bbox.lry - loc * halfSpace;
+}
