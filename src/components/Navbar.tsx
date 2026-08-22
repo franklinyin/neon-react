@@ -7,6 +7,8 @@ type NavbarProps = {
   onExitEditMode: () => void;
   onDownloadMEI?: () => void;
   downloadDisabled?: boolean;
+  onOpenMEI?: (file: File) => void;
+  openDisabled?: boolean;
 };
 
 export default function Navbar({
@@ -15,6 +17,8 @@ export default function Navbar({
   onExitEditMode,
   onDownloadMEI,
   downloadDisabled,
+  onOpenMEI,
+  openDisabled,
 }: NavbarProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -45,6 +49,8 @@ export default function Navbar({
             onExitEditMode={onExitEditMode}
             onDownloadMEI={onDownloadMEI}
             downloadDisabled={downloadDisabled}
+            onOpenMEI={onOpenMEI}
+            openDisabled={openDisabled}
           />
         </div>
 

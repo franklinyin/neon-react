@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 
 type EditMEIButtonProps = {
   isEditMode: boolean;
@@ -6,6 +6,8 @@ type EditMEIButtonProps = {
   onExitEditMode: () => void;
   onDownloadMEI?: () => void;
   downloadDisabled?: boolean;
+  onOpenMEI?: (file: File) => void;
+  openDisabled?: boolean;
 };
 
 /**
@@ -18,8 +20,12 @@ const EditMEIButton: React.FC<EditMEIButtonProps> = ({
   onExitEditMode,
   onDownloadMEI,
   downloadDisabled = false,
+  onOpenMEI,
+  openDisabled = false,
 }) => {
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const fileMenuItems = [
+    { id: 'openmei', label: 'Open MEI' },
     { id: 'save', label: 'Save' },
     { id: 'export', label: 'Save and Export to File' },
     { id: 'getmei', label: 'Download MEI' },
@@ -47,9 +53,24 @@ const EditMEIButton: React.FC<EditMEIButtonProps> = ({
     <div className="navbar-item has-dropdown is-hoverable">
       <a className="navbar-link">File</a>
       <div className="navbar-dropdown" id="navbar-dropdown-options">
+        <input
+          ref={fileInputRef}
+          id="open-mei-input"
+          type="file"
+          accept=".mei,.xml,text/xml,application/xml,application/mei+xml"
+          style={{ display: 'none' }}
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            event.target.value = '';
+            if (file) {
+              onOpenMEI?.(file);
+            }
+          }}
+        />
         {fileMenuItems.map((item) => {
           const isDownload = item.id === 'getmei';
-          const disabled = isDownload && downloadDisabled;
+          const isOpenMei = item.id === 'openmei';
+          const disabled = (isDownload && downloadDisabled) || (isOpenMei && openDisabled);
           return (
             <a
               key={item.id}
@@ -59,10 +80,14 @@ const EditMEIButton: React.FC<EditMEIButtonProps> = ({
               aria-disabled={disabled || undefined}
               onClick={(e) => {
                 e.preventDefault();
+                if (disabled) {
+                  return;
+                }
+                if (isOpenMei) {
+                  fileInputRef.current?.click();
+                  return;
+                }
                 if (isDownload) {
-                  if (disabled) {
-                    return;
-                  }
                   onDownloadMEI?.();
                 }
               }}

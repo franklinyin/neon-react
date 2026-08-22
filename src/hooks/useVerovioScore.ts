@@ -5,6 +5,7 @@ import {
   prepareMeiForVerovio,
   type PreparedMeiOutline,
 } from '../lib/mei/prepareMeiForVerovio';
+import { assertLooksLikeMei } from '../lib/mei/openMei';
 
 export type VerovioScoreState = {
   svg: string | null;
@@ -13,6 +14,7 @@ export type VerovioScoreState = {
   error: string | null;
   editAndRender: (action: VerovioEditorAction) => Promise<boolean>;
   getMEI: () => Promise<string>;
+  loadMei: (raw: string) => Promise<boolean>;
 };
 
 type Phase2BDevReport = {
@@ -37,6 +39,7 @@ export function useVerovioScore(meiUrl: string): VerovioScoreState {
   const clientRef = useRef<VerovioClient | null>(null);
   const editingRef = useRef(false);
   const sessionRef = useRef(0);
+  const hasScoreRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -49,6 +52,7 @@ export function useVerovioScore(meiUrl: string): VerovioScoreState {
     editingRef.current = false;
     setError(null);
     setSvg(null);
+    hasScoreRef.current = false;
 
     void (async () => {
       try {
@@ -118,6 +122,7 @@ export function useVerovioScore(meiUrl: string): VerovioScoreState {
         }
 
         setSvg(svgText);
+        hasScoreRef.current = true;
         setLoading(false);
       } catch (err) {
         if (cancelled) {
@@ -188,5 +193,47 @@ export function useVerovioScore(meiUrl: string): VerovioScoreState {
     return client.getMEI();
   }, []);
 
-  return { svg, loading, editing, error, editAndRender, getMEI };
+  const loadMei = useCallback(async (raw: string): Promise<boolean> => {
+    const client = clientRef.current;
+    const session = sessionRef.current;
+    if (!client || editingRef.current) {
+      return false;
+    }
+    editingRef.current = true;
+    try {
+      await client.waitUntilReady();
+      assertLooksLikeMei(raw);
+      const prepared = prepareMeiForVerovio(raw);
+      setLoading(true);
+      setError(null);
+      const svgText = await client.renderData(prepared);
+      if (sessionRef.current !== session) {
+        return false;
+      }
+      setSvg(svgText);
+      hasScoreRef.current = true;
+      setLoading(false);
+      return true;
+    } catch (err) {
+      if (sessionRef.current !== session) {
+        return false;
+      }
+      const message = err instanceof Error ? err.message : String(err);
+      if (!message.includes('disposed')) {
+        console.error('[open-mei] loadMei failed', err);
+        if (!hasScoreRef.current) {
+          setError(message);
+        }
+      }
+      setLoading(false);
+      return false;
+    } finally {
+      editingRef.current = false;
+      if (sessionRef.current === session) {
+        setEditing(false);
+      }
+    }
+  }, []);
+
+  return { svg, loading, editing, error, editAndRender, getMEI, loadMei };
 }

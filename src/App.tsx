@@ -23,6 +23,7 @@ import {
   type SlurBezierPoints,
 } from './lib/schenker/slur';
 import { createMeiBlob, downloadMei } from './lib/mei/downloadMei';
+import { readLocalMeiFile } from './lib/mei/openMei';
 
 const CF005_IMAGE = '/samples/CF-005.png';
 const CF005_MEI = '/samples/CF-005.mei';
@@ -55,7 +56,7 @@ function App() {
   const [selectedNoteIds, setSelectedNoteIds] = useState<string[]>([]);
   const [selectedBeamId, setSelectedBeamId] = useState<string | null>(null);
   const [selectedSlurId, setSelectedSlurId] = useState<string | null>(null);
-  const { svg, loading, editing, error, editAndRender, getMEI } = useVerovioScore(CF005_MEI);
+  const { svg, loading, editing, error, editAndRender, getMEI, loadMei } = useVerovioScore(CF005_MEI);
   const isEditModeRef = useRef(isEditMode);
   const activeInsertToolRef = useRef(activeInsertTool);
   const selectedNoteIdsRef = useRef(selectedNoteIds);
@@ -65,6 +66,7 @@ function App() {
   const loadingRef = useRef(loading);
   const downloadingRef = useRef(false);
   const [downloading, setDownloading] = useState(false);
+  const [openedMeiName, setOpenedMeiName] = useState('CF-005.mei');
   isEditModeRef.current = isEditMode;
   activeInsertToolRef.current = activeInsertTool;
   selectedNoteIdsRef.current = selectedNoteIds;
@@ -435,14 +437,35 @@ function App() {
         };
         w.__PHASE4_DOWNLOAD__ = { ...report, mei };
       }
-      downloadMei(mei, 'CF-005.mei');
+      downloadMei(mei, openedMeiName || 'score.mei');
     } catch (err) {
       console.error('[phase4] Download MEI failed', err);
     } finally {
       downloadingRef.current = false;
       setDownloading(false);
     }
-  }, [getMEI]);
+  }, [getMEI, openedMeiName]);
+
+  const handleOpenMEI = useCallback(async (file: File) => {
+    if (loadingRef.current || editingRef.current || downloadingRef.current) {
+      return;
+    }
+    try {
+      pendingSlurCurveRef.current = null;
+      const text = await readLocalMeiFile(file);
+      const ok = await loadMei(text);
+      if (!ok) {
+        return;
+      }
+      setOpenedMeiName(file.name || 'score.mei');
+      setActiveInsertTool(null);
+      setSelectedNoteIds([]);
+      setSelectedBeamId(null);
+      setSelectedSlurId(null);
+    } catch (err) {
+      console.error('[open-mei] failed', err);
+    }
+  }, [loadMei]);
 
   useEffect(() => {
     if (!import.meta.env.DEV) {
@@ -475,6 +498,10 @@ function App() {
           void handleDownloadMEI();
         }}
         downloadDisabled={loading || editing || downloading || Boolean(error)}
+        onOpenMEI={(file) => {
+          void handleOpenMEI(file);
+        }}
+        openDisabled={loading || editing || downloading}
       />
       <div className="columns">
         <div id="notification-content" style={{ display: 'none' }}></div>
