@@ -296,6 +296,53 @@ function pageToClientCoords(
   return { x: pt.x, y: pt.y };
 }
 
+function clientCenter(el: Element): ScorePoint {
+  const rect = el.getBoundingClientRect();
+  return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+}
+
+function noteheadGraphic(note: SVGGElement): SVGGraphicsElement {
+  return (
+    note.querySelector<SVGGraphicsElement>('.notehead') ||
+    note.querySelector<SVGGraphicsElement>('use') ||
+    note
+  );
+}
+
+/** Map a client-pixel point into the user space of `parent` (the space of a child's SVG transform). */
+function clientToParentUser(
+  parent: SVGGraphicsElement,
+  clientX: number,
+  clientY: number,
+): ScorePoint | null {
+  const ctm = parent.getScreenCTM();
+  if (!ctm) {
+    return null;
+  }
+  const pt = new DOMPoint(clientX, clientY).matrixTransform(ctm.inverse());
+  return { x: pt.x, y: pt.y };
+}
+
+function applyNoteDragPreview(
+  note: SVGGElement,
+  origTransform: string,
+  origHeadClient: ScorePoint,
+  targetClient: ScorePoint,
+): void {
+  const parent = note.parentNode;
+  if (!(parent instanceof SVGGraphicsElement)) {
+    return;
+  }
+  const from = clientToParentUser(parent, origHeadClient.x, origHeadClient.y);
+  const to = clientToParentUser(parent, targetClient.x, targetClient.y);
+  if (!from || !to) {
+    return;
+  }
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  note.setAttribute('transform', origTransform ? `translate(${dx} ${dy}) ${origTransform}` : `translate(${dx} ${dy})`);
+}
+
 function pageBounds(svgGroup: SVGSVGElement, fallback?: { width: number; height: number } | null) {
   const bg = svgGroup.querySelector<SVGImageElement>('#bgimg');
   const width = Number(bg?.getAttribute('width')) || fallback?.width || 0;
@@ -364,8 +411,7 @@ const ImageViewer: React.FC<{
     noteId: string;
     staffId: string;
     origTransform: string;
-    centerX: number;
-    centerY: number;
+    origHeadClient: ScorePoint;
     startX: number;
     startY: number;
   } | null>(null);
@@ -664,14 +710,12 @@ const ImageViewer: React.FC<{
     if (!note || !staff?.id || !point) {
       return;
     }
-    const box = note.getBBox();
     noteDidDragRef.current = false;
     noteDragRef.current = {
       noteId: selection.noteId,
       staffId: staff.id,
       origTransform: note.getAttribute('transform') || '',
-      centerX: box.x + box.width / 2,
-      centerY: box.y + box.height / 2,
+      origHeadClient: clientCenter(noteheadGraphic(note)),
       startX: point.x,
       startY: point.y,
     };
@@ -791,10 +835,11 @@ const ImageViewer: React.FC<{
       if (!Number.isFinite(loc) || !Number.isFinite(snappedY)) {
         return;
       }
-      const dx = point.x - noteDrag.centerX;
-      const dy = snappedY - noteDrag.centerY;
-      const orig = noteDrag.origTransform;
-      note.setAttribute('transform', orig ? `translate(${dx} ${dy}) ${orig}` : `translate(${dx} ${dy})`);
+      const targetClient = pageToClientCoords(svgRef.current, point.x, snappedY);
+      if (!targetClient) {
+        return;
+      }
+      applyNoteDragPreview(note, noteDrag.origTransform, noteDrag.origHeadClient, targetClient);
       return;
     }
     if (isDraggingRef.current && dragStartDataRef.current) {
