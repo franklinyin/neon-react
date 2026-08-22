@@ -27,6 +27,10 @@ if (import.meta.env.DEV) {
     void import('./lib/verovio/beam-note-move-probe').then(({ runBeamNoteMove }) => {
       void runBeamNoteMove();
     });
+  } else if (params.has('l1b1')) {
+    void import('./lib/verovio/l1b1-label-probe').then(({ runL1B1 }) => {
+      void runL1B1();
+    });
   } else if (params.has('l1') || params.has('l1a')) {
     void import('./lib/verovio/l1-label-probe').then(({ runL1Label }) => {
       void runL1Label();
