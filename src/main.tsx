@@ -11,7 +11,11 @@ createRoot(document.getElementById('root')!).render(
 
 if (import.meta.env.DEV) {
   const params = new URLSearchParams(window.location.search);
-  if (params.has('phase5')) {
+  if (params.has('recovery')) {
+    void import('./lib/verovio/recovery-s5a-probe').then(({ runRecoveryS5A }) => {
+      void runRecoveryS5A();
+    });
+  } else if (params.has('phase5')) {
     void import('./lib/verovio/phase5-probe').then(({ runPhase5 }) => {
       void runPhase5();
     });
