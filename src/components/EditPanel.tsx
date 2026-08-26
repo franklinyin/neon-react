@@ -15,6 +15,9 @@ type EditPanelProps = {
   slurEnabled?: boolean;
   onSlurSelected?: () => void;
   slurDisabled?: boolean;
+  labelEnabled?: boolean;
+  onNumberLabel?: () => void;
+  labelDisabled?: boolean;
   resetSlurEnabled?: boolean;
   onResetSlur?: () => void;
   resetSlurDisabled?: boolean;
@@ -34,6 +37,9 @@ export default function EditPanel({
   slurEnabled = false,
   onSlurSelected,
   slurDisabled = false,
+  labelEnabled = false,
+  onNumberLabel,
+  labelDisabled = false,
   resetSlurEnabled = false,
   onResetSlur,
   resetSlurDisabled = false,
@@ -44,6 +50,7 @@ export default function EditPanel({
   const canBeam = enabled && beamEnabled && !beamDisabled;
   const canFlip = enabled && flipEnabled && !flipDisabled;
   const canSlur = enabled && slurEnabled && !slurDisabled;
+  const canLabel = enabled && labelEnabled && !labelDisabled;
   const canResetSlur = enabled && resetSlurEnabled && !resetSlurDisabled;
 
   return (
@@ -131,6 +138,17 @@ export default function EditPanel({
                 onClick={onSlurSelected}
               >
                 Slur
+              </button>
+            </p>
+            <p className="control">
+              <button
+                type="button"
+                className="button"
+                id="labelNumber"
+                disabled={!canLabel}
+                onClick={onNumberLabel}
+              >
+                Number
               </button>
             </p>
             <p className="control">

@@ -25,6 +25,7 @@ import {
 import { createMeiBlob, downloadMei } from './lib/mei/downloadMei';
 import { readLocalMeiFile } from './lib/mei/openMei';
 import { buildSchenkerNoteMoveAction } from './lib/schenker/move';
+import { buildSchenkerLabelAction, canLabelSelection } from './lib/schenker/label';
 
 const CF005_IMAGE = '/samples/CF-005.png';
 const CF005_MEI = '/samples/CF-005.mei';
@@ -269,6 +270,33 @@ function App() {
     void editAndRender(action);
   }, [editAndRender]);
 
+  const handleNumberLabel = useCallback(() => {
+    if (!isEditModeRef.current || activeInsertToolRef.current) {
+      return;
+    }
+    if (loadingRef.current || editingRef.current) {
+      return;
+    }
+    const overlay = activeScoreOverlay();
+    const noteIds = selectedNoteIdsRef.current;
+    if (!canLabelSelection(overlay, noteIds, selectedBeamIdRef.current, selectedSlurIdRef.current)) {
+      return;
+    }
+    const value = window.prompt('Number', '3');
+    if (value === null) {
+      return;
+    }
+    const text = value.trim();
+    if (!text) {
+      return;
+    }
+    const action = buildSchenkerLabelAction(noteIds[0], text);
+    if (import.meta.env.DEV) {
+      console.log('[nativedir-r2] schenkerLabel payload', action);
+    }
+    void editAndRender(action);
+  }, [editAndRender]);
+
   const beamEnabled = useMemo(() => {
     if (!isEditMode || activeInsertTool) {
       return false;
@@ -289,6 +317,13 @@ function App() {
     }
     return canSlurSelection(activeSlurOverlay(), selectedNoteIds);
   }, [isEditMode, activeInsertTool, selectedNoteIds, svg]);
+
+  const labelEnabled = useMemo(() => {
+    if (!isEditMode || activeInsertTool) {
+      return false;
+    }
+    return canLabelSelection(activeScoreOverlay(), selectedNoteIds, selectedBeamId, selectedSlurId);
+  }, [isEditMode, activeInsertTool, selectedNoteIds, selectedBeamId, selectedSlurId, svg]);
 
   const resetSlurEnabled = useMemo(() => {
     if (!isEditMode || activeInsertTool) {
@@ -575,6 +610,9 @@ function App() {
                   void handleSlurSelected();
                 }}
                 slurDisabled={loading || editing || Boolean(activeInsertTool) || Boolean(error)}
+                labelEnabled={labelEnabled}
+                onNumberLabel={handleNumberLabel}
+                labelDisabled={loading || editing || Boolean(activeInsertTool) || Boolean(error)}
                 resetSlurEnabled={resetSlurEnabled}
                 onResetSlur={() => {
                   void handleResetSlur();
