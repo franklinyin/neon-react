@@ -48,6 +48,17 @@ export function buildSchenkerSlurResetAction(elementId: string): VerovioEditorAc
   };
 }
 
+export function buildSchenkerSlurDashedAction(elementId: string): VerovioEditorAction {
+  const id = elementId.trim();
+  if (!id) {
+    throw new Error('schenkerSlurDashed requires a non-empty elementId');
+  }
+  return {
+    action: 'schenkerSlurDashed',
+    param: { elementId: id },
+  };
+}
+
 export function isSchenkerNote(overlay: SVGSVGElement | null, noteId: string): boolean {
   if (!overlay || !noteId) {
     return false;

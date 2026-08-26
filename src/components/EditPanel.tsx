@@ -21,6 +21,9 @@ type EditPanelProps = {
   resetSlurEnabled?: boolean;
   onResetSlur?: () => void;
   resetSlurDisabled?: boolean;
+  dashedSlurEnabled?: boolean;
+  onDashedSlur?: () => void;
+  dashedSlurDisabled?: boolean;
 };
 
 export default function EditPanel({
@@ -43,6 +46,9 @@ export default function EditPanel({
   resetSlurEnabled = false,
   onResetSlur,
   resetSlurDisabled = false,
+  dashedSlurEnabled = false,
+  onDashedSlur,
+  dashedSlurDisabled = false,
 }: EditPanelProps) {
   const [isOpen, setIsOpen] = useState(true);
   const [selectBy, setSelectBy] = useState<'syllable' | 'neume' | 'nc' | 'staff'>('syllable');
@@ -52,6 +58,7 @@ export default function EditPanel({
   const canSlur = enabled && slurEnabled && !slurDisabled;
   const canLabel = enabled && labelEnabled && !labelDisabled;
   const canResetSlur = enabled && resetSlurEnabled && !resetSlurDisabled;
+  const canDashedSlur = enabled && dashedSlurEnabled && !dashedSlurDisabled;
 
   return (
     <div className="panel" style={enabled ? undefined : { opacity: 0.55 }}>
@@ -160,6 +167,17 @@ export default function EditPanel({
                 onClick={onFlipSelected}
               >
                 Flip
+              </button>
+            </p>
+            <p className="control">
+              <button
+                type="button"
+                className="button"
+                id="dashedSlur"
+                disabled={!canDashedSlur}
+                onClick={onDashedSlur}
+              >
+                Dashed
               </button>
             </p>
             <p className="control">

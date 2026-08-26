@@ -16,6 +16,7 @@ import { buildFlipAction, canFlipSelection } from './lib/schenker/flip';
 import {
   activeSlurOverlay,
   buildSchenkerSlurCurveAction,
+  buildSchenkerSlurDashedAction,
   buildSchenkerSlurResetAction,
   buildSlurNotesAction,
   canSlurSelection,
@@ -226,6 +227,24 @@ function App() {
     await editAndRender(action);
   }, [editAndRender]);
 
+  const handleDashedSlur = useCallback(async () => {
+    if (!isEditModeRef.current || activeInsertToolRef.current) {
+      return;
+    }
+    if (loadingRef.current || editingRef.current) {
+      return;
+    }
+    const slurId = selectedSlurIdRef.current;
+    if (!slurId || selectedNoteIdsRef.current.length > 0 || selectedBeamIdRef.current) {
+      return;
+    }
+    const action = buildSchenkerSlurDashedAction(slurId);
+    if (import.meta.env.DEV) {
+      console.log('[schenker] schenkerSlurDashed payload', action);
+    }
+    await editAndRender(action);
+  }, [editAndRender]);
+
   const pendingSlurCurveRef = useRef<{ slurId: string; points: SlurBezierPoints } | null>(null);
   const slurCurveBusyRef = useRef(false);
 
@@ -367,6 +386,8 @@ function App() {
     }
     return Boolean(selectedSlurId) && selectedNoteIds.length === 0 && !selectedBeamId;
   }, [isEditMode, activeInsertTool, selectedSlurId, selectedNoteIds, selectedBeamId]);
+
+  const dashedSlurEnabled = resetSlurEnabled;
 
   const selectedCount =
     selectedNoteIds.length + (selectedBeamId ? 1 : 0) + (selectedSlurId ? 1 : 0);
@@ -670,6 +691,11 @@ function App() {
                   void handleResetSlur();
                 }}
                 resetSlurDisabled={loading || editing || Boolean(activeInsertTool) || Boolean(error)}
+                dashedSlurEnabled={dashedSlurEnabled}
+                onDashedSlur={() => {
+                  void handleDashedSlur();
+                }}
+                dashedSlurDisabled={loading || editing || Boolean(activeInsertTool) || Boolean(error)}
               />
             </div>
             <div id="undoRedo_controls" style={isEditMode ? undefined : { opacity: 0.55, pointerEvents: 'none' }}>
