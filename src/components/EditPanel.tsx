@@ -16,7 +16,7 @@ type EditPanelProps = {
   onSlurSelected?: () => void;
   slurDisabled?: boolean;
   labelEnabled?: boolean;
-  onNumberLabel?: () => void;
+  onTextLabel?: () => void;
   labelDisabled?: boolean;
   resetSlurEnabled?: boolean;
   onResetSlur?: () => void;
@@ -38,7 +38,7 @@ export default function EditPanel({
   onSlurSelected,
   slurDisabled = false,
   labelEnabled = false,
-  onNumberLabel,
+  onTextLabel,
   labelDisabled = false,
   resetSlurEnabled = false,
   onResetSlur,
@@ -144,11 +144,11 @@ export default function EditPanel({
               <button
                 type="button"
                 className="button"
-                id="labelNumber"
+                id="labelText"
                 disabled={!canLabel}
-                onClick={onNumberLabel}
+                onClick={onTextLabel}
               >
-                Number
+                Text
               </button>
             </p>
             <p className="control">

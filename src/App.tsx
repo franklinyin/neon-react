@@ -275,7 +275,7 @@ function App() {
     void editAndRender(action);
   }, [editAndRender]);
 
-  const handleNumberLabel = useCallback(() => {
+  const handleTextLabel = useCallback(() => {
     if (!isEditModeRef.current || activeInsertToolRef.current) {
       return;
     }
@@ -295,7 +295,7 @@ function App() {
     ) {
       return;
     }
-    const value = window.prompt('Number', '3');
+    const value = window.prompt('Text', '3');
     if (value === null) {
       return;
     }
@@ -663,7 +663,7 @@ function App() {
                 }}
                 slurDisabled={loading || editing || Boolean(activeInsertTool) || Boolean(error)}
                 labelEnabled={labelEnabled}
-                onNumberLabel={handleNumberLabel}
+                onTextLabel={handleTextLabel}
                 labelDisabled={loading || editing || Boolean(activeInsertTool) || Boolean(error)}
                 resetSlurEnabled={resetSlurEnabled}
                 onResetSlur={() => {
