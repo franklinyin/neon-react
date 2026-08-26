@@ -68,7 +68,7 @@ export function renderLabelPreview(overlay: SVGSVGElement, draft: LabelLocalDraf
   if (meta.fontSize) {
     preview.setAttribute('font-size', meta.fontSize);
   }
-  preview.setAttribute('font-style', 'italic');
+  preview.setAttribute('font-style', 'normal');
   preview.classList.add('schenker-label-preview-text');
   preview.textContent = meta.text;
   layer.appendChild(preview);

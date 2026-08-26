@@ -137,6 +137,14 @@ g.repeatMark .text {
     display: inline;
 }
 
+/* Schenker number labels: Verovio CSS forces g.dir italic — keep upright. */
+.neon-container g.dir[data-startid],
+.neon-container g.dir[data-startid] text,
+.neon-container g.dir[data-startid] tspan,
+.schenker-label-preview-text {
+    font-style: normal !important;
+}
+
 .sylTextRect {
     display: none;
 }
