@@ -32,6 +32,30 @@ export function buildSchenkerBeamStemAdjustAction(
   };
 }
 
+export function buildSchenkerBeamHideAction(
+  elementId: string,
+  fromX: number,
+  toX: number,
+): VerovioEditorAction {
+  const id = elementId.trim();
+  if (!id) {
+    throw new Error('schenkerBeamHide requires a non-empty elementId');
+  }
+  if (!Number.isFinite(fromX) || !Number.isFinite(toX)) {
+    throw new Error('schenkerBeamHide requires finite fromX/toX');
+  }
+  const a = Math.min(fromX, toX);
+  const b = Math.max(fromX, toX);
+  return {
+    action: 'schenkerBeamHide',
+    param: {
+      elementId: id,
+      fromX: Math.round(a * 100) / 100,
+      toX: Math.round(b * 100) / 100,
+    },
+  };
+}
+
 export function canDragSelectedBeam(
   overlay: SVGSVGElement | null,
   selectedBeamId: string | null,

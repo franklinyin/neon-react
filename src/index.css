@@ -248,6 +248,22 @@ g.repeatMark .text {
     pointer-events: all;
 }
 
+/* Hide-beam mode: crosshair + marquee instead of vertical stem drag. */
+.neon-container.schenker-beam-hide-armed,
+.neon-container.schenker-beam-hide-armed .beam.selected-schenker-beam,
+.neon-container.schenker-beam-hide-armed .beam.selected-schenker-beam *,
+.neon-container.schenker-beam-hide-armed .schenker-beam-drag-hit {
+    cursor: crosshair;
+}
+
+.schenker-beam-hide-marquee {
+    fill: rgba(200, 40, 40, 0.12);
+    stroke: #c82828;
+    stroke-width: 1.5;
+    stroke-dasharray: 4 3;
+    pointer-events: none;
+}
+
 .slur.selected-schenker-slur,
 .slur.selected-schenker-slur path {
     color: #d00;

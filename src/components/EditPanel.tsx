@@ -24,6 +24,10 @@ type EditPanelProps = {
   dashedSlurEnabled?: boolean;
   onDashedSlur?: () => void;
   dashedSlurDisabled?: boolean;
+  beamHideEnabled?: boolean;
+  onBeamHideArm?: () => void;
+  beamHideArmed?: boolean;
+  beamHideDisabled?: boolean;
 };
 
 export default function EditPanel({
@@ -49,6 +53,10 @@ export default function EditPanel({
   dashedSlurEnabled = false,
   onDashedSlur,
   dashedSlurDisabled = false,
+  beamHideEnabled = false,
+  onBeamHideArm,
+  beamHideArmed = false,
+  beamHideDisabled = false,
 }: EditPanelProps) {
   const [isOpen, setIsOpen] = useState(true);
   const [selectBy, setSelectBy] = useState<'syllable' | 'neume' | 'nc' | 'staff'>('syllable');
@@ -59,6 +67,7 @@ export default function EditPanel({
   const canLabel = enabled && labelEnabled && !labelDisabled;
   const canResetSlur = enabled && resetSlurEnabled && !resetSlurDisabled;
   const canDashedSlur = enabled && dashedSlurEnabled && !dashedSlurDisabled;
+  const canBeamHide = enabled && beamHideEnabled && !beamHideDisabled;
 
   return (
     <div className="panel" style={enabled ? undefined : { opacity: 0.55 }}>
@@ -178,6 +187,18 @@ export default function EditPanel({
                 onClick={onDashedSlur}
               >
                 Dashed
+              </button>
+            </p>
+            <p className="control">
+              <button
+                type="button"
+                className={`button ${beamHideArmed ? 'is-active' : ''}`}
+                id="hideBeamSegment"
+                disabled={!canBeamHide}
+                onClick={onBeamHideArm}
+                title="Drag a box over the selected beam to hide that portion"
+              >
+                Hide beam
               </button>
             </p>
             <p className="control">

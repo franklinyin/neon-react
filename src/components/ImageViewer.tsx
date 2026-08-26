@@ -52,8 +52,10 @@ const SELECTED_BARLINE_CLASS = 'selected-schenker-barline';
 const SELECTED_SLUR_CLASS = 'selected-schenker-slur';
 const SLUR_HANDLES_LAYER_ID = 'schenker-slur-handles';
 const SLUR_PREVIEW_LAYER_ID = 'schenker-slur-preview';
+const BEAM_HIDE_MARQUEE_ID = 'schenker-beam-hide-marquee';
 const SHOW_SLUR_HANDLES = true;
 const LABEL_DRAG_THRESHOLD = 5;
+const BEAM_HIDE_DRAG_THRESHOLD = 5;
 
 function selectionFromEvent(event: React.MouseEvent): {
   noteId: string | null;
@@ -309,6 +311,41 @@ function updateSlurHandlesInPlace(overlay: SVGSVGElement, points: SlurBezierPoin
       label.setAttribute('y', String(point.y - SLUR_HANDLE_RADIUS - 6));
     }
   });
+}
+
+function removeBeamHideMarquee(overlay: SVGSVGElement | null): void {
+  overlay?.querySelector(`#${BEAM_HIDE_MARQUEE_ID}`)?.remove();
+}
+
+function upsertBeamHideMarquee(
+  overlay: SVGSVGElement,
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+): void {
+  const pageMargin =
+    overlay.querySelector<SVGGElement>('.definition-scale .page-margin') ||
+    overlay.querySelector<SVGGElement>('.page-margin');
+  if (!pageMargin) {
+    return;
+  }
+  let rect = overlay.querySelector<SVGRectElement>(`#${BEAM_HIDE_MARQUEE_ID}`);
+  if (!rect) {
+    rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    rect.setAttribute('id', BEAM_HIDE_MARQUEE_ID);
+    rect.setAttribute('class', 'schenker-beam-hide-marquee');
+    rect.setAttribute('pointer-events', 'none');
+    pageMargin.appendChild(rect);
+  }
+  const left = Math.min(x0, x1);
+  const top = Math.min(y0, y1);
+  const width = Math.abs(x1 - x0);
+  const height = Math.abs(y1 - y0);
+  rect.setAttribute('x', String(left));
+  rect.setAttribute('y', String(top));
+  rect.setAttribute('width', String(width));
+  rect.setAttribute('height', String(height));
 }
 
 function clientToPageCoords(
@@ -576,12 +613,14 @@ const ImageViewer: React.FC<{
     from: ScorePoint,
     to: ScorePoint,
   ) => void;
+  onBeamHideCommit?: (beamId: string, fromX: number, toX: number) => void;
   onLabelOffsetCommit?: (
     labelId: string,
     from: ScorePoint,
     to: ScorePoint,
   ) => void;
   noteDragEnabled?: boolean;
+  beamHideArmed?: boolean;
   onZoomReady?: (zoom: ReturnType<typeof useZoom>) => void;
 }> = ({
   imagePath = '/SK-001.png',
@@ -596,8 +635,10 @@ const ImageViewer: React.FC<{
   onNoteMoveCommit,
   onBarLineMoveCommit,
   onBeamStemCommit,
+  onBeamHideCommit,
   onLabelOffsetCommit,
   noteDragEnabled = false,
+  beamHideArmed = false,
   onZoomReady,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -633,10 +674,14 @@ const ImageViewer: React.FC<{
   onBarLineMoveCommitRef.current = onBarLineMoveCommit;
   const onBeamStemCommitRef = useRef(onBeamStemCommit);
   onBeamStemCommitRef.current = onBeamStemCommit;
+  const onBeamHideCommitRef = useRef(onBeamHideCommit);
+  onBeamHideCommitRef.current = onBeamHideCommit;
   const onLabelOffsetCommitRef = useRef(onLabelOffsetCommit);
   onLabelOffsetCommitRef.current = onLabelOffsetCommit;
   const noteDragEnabledRef = useRef(noteDragEnabled);
   noteDragEnabledRef.current = noteDragEnabled;
+  const beamHideArmedRef = useRef(beamHideArmed);
+  beamHideArmedRef.current = beamHideArmed;
   const noteDragRef = useRef<{
     noteId: string;
     staffId: string;
@@ -660,6 +705,14 @@ const ImageViewer: React.FC<{
     dy: number;
   } | null>(null);
   const beamDidDragRef = useRef(false);
+  const beamHideDragRef = useRef<{
+    beamId: string;
+    startX: number;
+    startY: number;
+    endX: number;
+    endY: number;
+  } | null>(null);
+  const beamHideDidDragRef = useRef(false);
   const labelLocalDraftRef = useRef<LabelLocalDraft | null>(null);
   const [labelLocalDraft, setLabelLocalDraftState] = useState<LabelLocalDraft | null>(null);
   const labelDragRef = useRef<{
@@ -829,7 +882,20 @@ const ImageViewer: React.FC<{
     applyBarLineSelection(overlay, selectedBarLineId);
     applySlurSelection(overlay, selectedSlurId);
     applyLabelSelection(overlay, selectedLabelId);
-  }, [selectedNoteIds, selectedBeamId, selectedBarLineId, selectedSlurId, selectedLabelId]);
+    overlay.classList.toggle('schenker-beam-hide-armed', Boolean(beamHideArmed && selectedBeamId));
+    if (!beamHideArmed) {
+      removeBeamHideMarquee(overlay);
+      beamHideDragRef.current = null;
+      beamHideDidDragRef.current = false;
+    }
+  }, [
+    selectedNoteIds,
+    selectedBeamId,
+    selectedBarLineId,
+    selectedSlurId,
+    selectedLabelId,
+    beamHideArmed,
+  ]);
 
   const syncSlurEditorLayer = useCallback(() => {
     const overlay = svgRef.current?.querySelector<SVGSVGElement>('.neon-container.active-page');
@@ -1006,6 +1072,25 @@ const ImageViewer: React.FC<{
     if (!overlay) {
       return;
     }
+    // Hide-beam mode: drag a box; X range chops the selected beam segment.
+    if (beamHideArmedRef.current && selectedBeamIdRef.current) {
+      const point = clientToPageCoords(svgRef.current, e.clientX, e.clientY);
+      if (!point) {
+        return;
+      }
+      e.preventDefault();
+      beamHideDidDragRef.current = false;
+      beamHideDragRef.current = {
+        beamId: selectedBeamIdRef.current,
+        startX: point.x,
+        startY: point.y,
+        endX: point.x,
+        endY: point.y,
+      };
+      removeBeamHideMarquee(overlay);
+      upsertBeamHideMarquee(overlay, point.x, point.y, point.x, point.y);
+      return;
+    }
     const hitBeamId = resolveBeamDragId(
       e.target,
       selection.beamId,
@@ -1121,6 +1206,10 @@ const ImageViewer: React.FC<{
       beamDidDragRef.current = false;
       return;
     }
+    if (beamHideDidDragRef.current) {
+      beamHideDidDragRef.current = false;
+      return;
+    }
     const svg = svgRef.current;
     if (!svg) {
       return;
@@ -1193,6 +1282,32 @@ const ImageViewer: React.FC<{
   }, [setSlurLocalDraft]);
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
+    const beamHideDrag = beamHideDragRef.current;
+    if (beamHideDrag && svgRef.current) {
+      const overlay = svgRef.current.querySelector<SVGSVGElement>('.neon-container.active-page');
+      const point = clientToPageCoords(svgRef.current, e.clientX, e.clientY);
+      if (!overlay || !point) {
+        return;
+      }
+      const moved = Math.hypot(point.x - beamHideDrag.startX, point.y - beamHideDrag.startY);
+      if (moved >= BEAM_HIDE_DRAG_THRESHOLD) {
+        beamHideDidDragRef.current = true;
+      }
+      if (!beamHideDidDragRef.current) {
+        return;
+      }
+      e.preventDefault();
+      document.body.style.cursor = 'crosshair';
+      beamHideDragRef.current = { ...beamHideDrag, endX: point.x, endY: point.y };
+      upsertBeamHideMarquee(
+        overlay,
+        beamHideDrag.startX,
+        beamHideDrag.startY,
+        point.x,
+        point.y,
+      );
+      return;
+    }
     const labelDrag = labelDragRef.current;
     if (labelDrag && svgRef.current) {
       const overlay = svgRef.current.querySelector<SVGSVGElement>('.neon-container.active-page');
@@ -1305,6 +1420,28 @@ const ImageViewer: React.FC<{
   }, [zoom, setLabelLocalDraft]);
 
   const handleMouseUp = useCallback((e: MouseEvent) => {
+    const beamHideDrag = beamHideDragRef.current;
+    if (beamHideDrag && svgRef.current) {
+      const overlay = svgRef.current.querySelector<SVGSVGElement>('.neon-container.active-page');
+      const point = clientToPageCoords(svgRef.current, e.clientX, e.clientY);
+      beamHideDragRef.current = null;
+      document.body.style.cursor = '';
+      removeBeamHideMarquee(overlay);
+      if (!beamHideDidDragRef.current) {
+        isDraggingRef.current = false;
+        dragStartDataRef.current = null;
+        return;
+      }
+      const endX = point ? point.x : beamHideDrag.endX;
+      const fromX = Math.min(beamHideDrag.startX, endX);
+      const toX = Math.max(beamHideDrag.startX, endX);
+      if (toX - fromX >= 1) {
+        onBeamHideCommitRef.current?.(beamHideDrag.beamId, fromX, toX);
+      }
+      isDraggingRef.current = false;
+      dragStartDataRef.current = null;
+      return;
+    }
     const labelDrag = labelDragRef.current;
     if (labelDrag && svgRef.current) {
       const point = clientToPageCoords(svgRef.current, e.clientX, e.clientY);
