@@ -10,7 +10,7 @@ import { useZoom } from './hooks/useZoom';
 import { useVerovioScore } from './hooks/useVerovioScore';
 import { findNearestStaff, measureRenderedStaffs, yToLoc } from './lib/schenker/geometry';
 import { buildStructuralNoteInsertAction, type StructuralNoteKind } from './lib/schenker/structuralNote';
-import { buildSchenkerDoubleBarLineInsertAction } from './lib/schenker/barline';
+import { buildSchenkerDoubleBarLineInsertAction, buildSchenkerBarLineMoveAction } from './lib/schenker/barline';
 import { buildDeleteElementsAction } from './lib/schenker/remove';
 import { activeScoreOverlay, buildBeamNotesAction, buildSchenkerBeamStemAdjustAction, canBeamSelection } from './lib/schenker/beam';
 import { buildFlipAction, canFlipSelection } from './lib/schenker/flip';
@@ -302,6 +302,20 @@ function App() {
     const action = buildSchenkerNoteMoveAction(noteId, loc, schenkerX);
     if (import.meta.env.DEV) {
       console.log('[note-move] schenkerNoteMove payload', action);
+    }
+    void editAndRender(action);
+  }, [editAndRender]);
+
+  const handleBarLineMoveCommit = useCallback((barLineId: string, schenkerX: number) => {
+    if (!isEditModeRef.current || activeInsertToolRef.current) {
+      return;
+    }
+    if (loadingRef.current || editingRef.current) {
+      return;
+    }
+    const action = buildSchenkerBarLineMoveAction(barLineId, schenkerX);
+    if (import.meta.env.DEV) {
+      console.log('[barline-move] schenkerBarLineMove payload', action);
     }
     void editAndRender(action);
   }, [editAndRender]);
@@ -712,6 +726,7 @@ function App() {
               onScoreClick={handleScoreClick}
               onSlurCurveCommit={handleSlurCurveCommit}
               onNoteMoveCommit={handleNoteMoveCommit}
+              onBarLineMoveCommit={handleBarLineMoveCommit}
               onBeamStemCommit={handleBeamStemCommit}
               onLabelOffsetCommit={handleLabelOffsetCommit}
               noteDragEnabled={isEditMode && !activeInsertTool && !loading && !editing}

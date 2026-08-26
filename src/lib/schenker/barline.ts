@@ -1,3 +1,5 @@
+import type { VerovioEditorAction } from '../verovio/VerovioClient';
+
 export type SchenkerBarLineForm = 'dbl' | 'single' | 'end';
 
 export type SchenkerBarLineInsertAction = {
@@ -42,4 +44,34 @@ export function canSelectBarLine(overlay: SVGSVGElement | null, barLineId: strin
     return false;
   }
   return Boolean(overlay.querySelector(`#${CSS.escape(barLineId)}.barLine`));
+}
+
+export function buildSchenkerBarLineMoveAction(
+  elementId: string,
+  schenkerX: number,
+): VerovioEditorAction {
+  const id = elementId.trim();
+  if (!id) {
+    throw new Error('schenkerBarLineMove requires a non-empty elementId');
+  }
+  if (!Number.isFinite(schenkerX)) {
+    throw new Error('schenkerBarLineMove requires a finite schenkerX');
+  }
+  return {
+    action: 'schenkerBarLineMove',
+    param: {
+      elementId: id,
+      schenkerX: Math.round(schenkerX * 100) / 100,
+    },
+  };
+}
+
+export function canDragSelectedBarLine(
+  overlay: SVGSVGElement | null,
+  selectedBarLineId: string | null,
+  hitBarLineId: string | null,
+): boolean {
+  return Boolean(
+    overlay && selectedBarLineId && hitBarLineId && selectedBarLineId === hitBarLineId,
+  );
 }

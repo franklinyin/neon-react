@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { useZoom } from '../hooks/useZoom';
 import { locToY, measureRenderedStaffs, yToLoc } from '../lib/schenker/geometry';
 import { canDragSelectedBeam } from '../lib/schenker/beam';
+import { canDragSelectedBarLine } from '../lib/schenker/barline';
 import { canMoveSchenkerNote } from '../lib/schenker/move';
 import { readSchenkerLabelMetadata } from '../lib/schenker/label';
 import {
@@ -399,6 +400,18 @@ function applyNoteDragPreview(
   note.setAttribute('transform', origTransform ? `translate(${dx} ${dy}) ${origTransform}` : `translate(${dx} ${dy})`);
 }
 
+function applyBarLineDragPreview(barLine: SVGGElement, dx: number): void {
+  if (dx === 0) {
+    barLine.removeAttribute('transform');
+  } else {
+    barLine.setAttribute('transform', `translate(${dx} 0)`);
+  }
+}
+
+function clearBarLineDragPreview(barLine: SVGGElement): void {
+  barLine.removeAttribute('transform');
+}
+
 function pageBounds(svgGroup: SVGSVGElement, fallback?: { width: number; height: number } | null) {
   const bg = svgGroup.querySelector<SVGImageElement>('#bgimg');
   const width = Number(bg?.getAttribute('width')) || fallback?.width || 0;
@@ -413,6 +426,7 @@ function pageBounds(svgGroup: SVGSVGElement, fallback?: { width: number; height:
  */
 const NOTE_DRAG_THRESHOLD = 5;
 const BEAM_DRAG_THRESHOLD = 5;
+const BARLINE_DRAG_THRESHOLD = 5;
 const BEAM_DRAG_HIT_CLASS = 'schenker-beam-drag-hit';
 /** Extra stroke width (page units) so the beam bar is easy to grab like a window edge. */
 const BEAM_DRAG_HIT_STROKE = 72;
@@ -556,6 +570,7 @@ const ImageViewer: React.FC<{
   onScoreClick?: (hit: ScoreHit) => void;
   onSlurCurveCommit?: (slurId: string, points: SlurBezierPoints) => void;
   onNoteMoveCommit?: (noteId: string, loc: number, schenkerX: number) => void;
+  onBarLineMoveCommit?: (barLineId: string, schenkerX: number) => void;
   onBeamStemCommit?: (
     beamId: string,
     from: ScorePoint,
@@ -579,6 +594,7 @@ const ImageViewer: React.FC<{
   onScoreClick,
   onSlurCurveCommit,
   onNoteMoveCommit,
+  onBarLineMoveCommit,
   onBeamStemCommit,
   onLabelOffsetCommit,
   noteDragEnabled = false,
@@ -613,6 +629,8 @@ const ImageViewer: React.FC<{
   onSlurCurveCommitRef.current = onSlurCurveCommit;
   const onNoteMoveCommitRef = useRef(onNoteMoveCommit);
   onNoteMoveCommitRef.current = onNoteMoveCommit;
+  const onBarLineMoveCommitRef = useRef(onBarLineMoveCommit);
+  onBarLineMoveCommitRef.current = onBarLineMoveCommit;
   const onBeamStemCommitRef = useRef(onBeamStemCommit);
   onBeamStemCommitRef.current = onBeamStemCommit;
   const onLabelOffsetCommitRef = useRef(onLabelOffsetCommit);
@@ -628,6 +646,13 @@ const ImageViewer: React.FC<{
     startY: number;
   } | null>(null);
   const noteDidDragRef = useRef(false);
+  const barLineDragRef = useRef<{
+    barLineId: string;
+    startX: number;
+    startY: number;
+    dx: number;
+  } | null>(null);
+  const barLineDidDragRef = useRef(false);
   const beamDragRef = useRef<{
     beamId: string;
     startX: number;
@@ -1001,6 +1026,22 @@ const ImageViewer: React.FC<{
       };
       return;
     }
+    const hitBarLineId = selection.barLineId;
+    if (canDragSelectedBarLine(overlay, selectedBarLineIdRef.current, hitBarLineId)) {
+      const point = clientToPageCoords(svgRef.current, e.clientX, e.clientY);
+      if (!point || !hitBarLineId) {
+        return;
+      }
+      e.preventDefault();
+      barLineDidDragRef.current = false;
+      barLineDragRef.current = {
+        barLineId: hitBarLineId,
+        startX: point.x,
+        startY: point.y,
+        dx: 0,
+      };
+      return;
+    }
     if (selection.labelId && selectedLabelIdRef.current === selection.labelId) {
       const point = clientToPageCoords(svgRef.current, e.clientX, e.clientY);
       const meta = readSchenkerLabelMetadata(overlay, selection.labelId);
@@ -1070,6 +1111,10 @@ const ImageViewer: React.FC<{
     }
     if (noteDidDragRef.current) {
       noteDidDragRef.current = false;
+      return;
+    }
+    if (barLineDidDragRef.current) {
+      barLineDidDragRef.current = false;
       return;
     }
     if (beamDidDragRef.current) {
@@ -1193,6 +1238,30 @@ const ImageViewer: React.FC<{
       applyBeamDragPreview(beam, dy);
       return;
     }
+    const barLineDrag = barLineDragRef.current;
+    if (barLineDrag && svgRef.current) {
+      const overlay = svgRef.current.querySelector<SVGSVGElement>('.neon-container.active-page');
+      const barLine = overlay?.querySelector<SVGGElement>(
+        `#${CSS.escape(barLineDrag.barLineId)}.barLine`,
+      );
+      const point = clientToPageCoords(svgRef.current, e.clientX, e.clientY);
+      if (!barLine || !point) {
+        return;
+      }
+      const dx = point.x - barLineDrag.startX;
+      const moved = Math.hypot(dx, point.y - barLineDrag.startY);
+      if (moved >= BARLINE_DRAG_THRESHOLD) {
+        barLineDidDragRef.current = true;
+      }
+      if (!barLineDidDragRef.current) {
+        return;
+      }
+      e.preventDefault();
+      document.body.style.cursor = 'ew-resize';
+      barLineDragRef.current = { ...barLineDrag, dx };
+      applyBarLineDragPreview(barLine, dx);
+      return;
+    }
     const noteDrag = noteDragRef.current;
     if (noteDrag && svgRef.current) {
       const overlay = svgRef.current.querySelector<SVGSVGElement>('.neon-container.active-page');
@@ -1282,6 +1351,29 @@ const ImageViewer: React.FC<{
         { x: beamDrag.startX, y: beamDrag.startY },
         { x: beamDrag.startX, y: toY },
       );
+      isDraggingRef.current = false;
+      dragStartDataRef.current = null;
+      return;
+    }
+    const barLineDrag = barLineDragRef.current;
+    if (barLineDrag && svgRef.current) {
+      const overlay = svgRef.current.querySelector<SVGSVGElement>('.neon-container.active-page');
+      const barLine = overlay?.querySelector<SVGGElement>(
+        `#${CSS.escape(barLineDrag.barLineId)}.barLine`,
+      );
+      const point = clientToPageCoords(svgRef.current, e.clientX, e.clientY);
+      barLineDragRef.current = null;
+      document.body.style.cursor = '';
+      if (!barLineDidDragRef.current) {
+        if (barLine) {
+          clearBarLineDragPreview(barLine);
+        }
+        isDraggingRef.current = false;
+        dragStartDataRef.current = null;
+        return;
+      }
+      const toX = point ? point.x : barLineDrag.startX + barLineDrag.dx;
+      onBarLineMoveCommitRef.current?.(barLineDrag.barLineId, toX);
       isDraggingRef.current = false;
       dragStartDataRef.current = null;
       return;
