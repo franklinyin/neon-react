@@ -91,7 +91,14 @@ export function prepareMeiForVerovio(mei: string): string {
 
       const newStaff = doc.createElementNS(MEI_NS, 'staff');
       copyAttributes(currentSb, newStaff);
-      newStaff.setAttribute('n', '1');
+      // Keep the parent <staff n="…"> so multi-staff systems stay distinguishable
+      // after sb→staff (CF-005: n="1" upper / n="2" lower). Do not force n="1".
+      const parentN = staff.getAttribute('n');
+      if (parentN) {
+        newStaff.setAttribute('n', parentN);
+      } else if (!newStaff.getAttribute('n')) {
+        newStaff.setAttribute('n', '1');
+      }
 
       const newLayer = doc.createElementNS(MEI_NS, 'layer');
       newLayer.setAttribute('n', '1');

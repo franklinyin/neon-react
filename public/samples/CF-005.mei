@@ -46,7 +46,7 @@
 
                         <staff n="2">
                             <layer n="1">
-                                <sb n="1" facs="#zone-0000001369027437" xml:id="staff-0000001081017002"/>
+                                <sb n="2" facs="#zone-0000001369027437" xml:id="staff-0000001081017002"/>
                                 <clef xml:id="clef-0000001374857255" facs="#zone-0000000092798845" shape="F" line="4"/>
 
                             </layer>
