@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import EditMEIButton from './EditMEIButton';
+import { FEEDBACK_FORM_URL } from '../config/feedback';
 
 type NavbarProps = {
   isEditMode: boolean;
@@ -55,14 +56,16 @@ export default function Navbar({
         </div>
 
         <div className="navbar-end">
-          <a
-            className="navbar-item"
-            href="https://forms.gle/vGUpvZKZxGX5QGJZ9"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Feedback Form
-          </a>
+          {FEEDBACK_FORM_URL ? (
+            <a
+              className="navbar-item"
+              href={FEEDBACK_FORM_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Feedback Form
+            </a>
+          ) : null}
           <div className="navbar-item has-dropdown is-hoverable">
             <a className="navbar-link">Help</a>
             <div className="navbar-dropdown is-right">

@@ -20,4 +20,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+# Local secrets / machine config (Vite loads .env.local; Feedback form URL lives here)
 .env
+.env.local
+*.local
