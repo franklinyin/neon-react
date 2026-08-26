@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useZoom } from '../hooks/useZoom';
 import { locToY, measureRenderedStaffs, yToLoc } from '../lib/schenker/geometry';
+import { canDragSelectedBeam } from '../lib/schenker/beam';
 import { canMoveSchenkerNote } from '../lib/schenker/move';
 import { readSchenkerLabelMetadata } from '../lib/schenker/label';
 import {
@@ -72,6 +73,23 @@ function selectionFromEvent(event: React.MouseEvent): {
     const dir = el.closest('.dir');
     if (dir?.id) {
       return { noteId: null, beamId: null, slurId: null, labelId: dir.id };
+    }
+    // Beam bar / drag hit before notes: note bounding-boxes otherwise swallow the bar.
+    const beamFromHit = beamIdFromDragHit(el);
+    if (beamFromHit) {
+      return { noteId: null, beamId: beamFromHit, slurId: null, labelId: null };
+    }
+    if (isBeamBarGraphic(el)) {
+      const beam = el.closest('.beam');
+      if (beam?.id) {
+        return { noteId: null, beamId: beam.id, slurId: null, labelId: null };
+      }
+    }
+    // Keep a selected beam sticky: presses on its stems stay on the beam so
+    // drag can start (and click does not flip selection to a child note).
+    const selectedBeam = el.closest(`.beam.${SELECTED_BEAM_CLASS}`);
+    if (selectedBeam?.id) {
+      return { noteId: null, beamId: selectedBeam.id, slurId: null, labelId: null };
     }
     const note = el.closest('.note');
     if (note?.id) {
@@ -373,6 +391,138 @@ function pageBounds(svgGroup: SVGSVGElement, fallback?: { width: number; height:
  * Based on SingleView.ts - creates SVG with background image
  */
 const NOTE_DRAG_THRESHOLD = 5;
+const BEAM_DRAG_THRESHOLD = 5;
+const BEAM_DRAG_HIT_CLASS = 'schenker-beam-drag-hit';
+/** Extra stroke width (page units) so the beam bar is easy to grab like a window edge. */
+const BEAM_DRAG_HIT_STROKE = 72;
+
+function beamIdContainingTarget(target: EventTarget | null): string | null {
+  const el = target instanceof Element ? target : null;
+  if (!el) {
+    return null;
+  }
+  const fromHit = el.closest(`.${BEAM_DRAG_HIT_CLASS}`);
+  if (fromHit) {
+    return fromHit.closest('.beam')?.id || null;
+  }
+  return el.closest('.beam')?.id || null;
+}
+
+function beamIdFromDragHit(el: Element): string | null {
+  const hit = el.closest(`.${BEAM_DRAG_HIT_CLASS}`);
+  return hit?.closest('.beam')?.id || null;
+}
+
+function isBeamBarGraphic(el: Element): boolean {
+  if (el.tagName !== 'polygon' && el.tagName !== 'path') {
+    return false;
+  }
+  const beam = el.closest('.beam');
+  return Boolean(beam && el.parentElement === beam && !el.classList.contains(BEAM_DRAG_HIT_CLASS));
+}
+
+function clearBeamDragHitTargets(overlay: SVGSVGElement | SVGGElement): void {
+  overlay.querySelectorAll(`.${BEAM_DRAG_HIT_CLASS}`).forEach((node) => node.remove());
+}
+
+function syncBeamDragHitTargets(overlay: SVGSVGElement): void {
+  clearBeamDragHitTargets(overlay);
+  overlay.querySelectorAll<SVGGElement>('g.beam').forEach((beam) => {
+    const polys = beam.querySelectorAll<SVGPolygonElement>(':scope > polygon');
+    polys.forEach((poly) => {
+      if (poly.classList.contains(BEAM_DRAG_HIT_CLASS)) {
+        return;
+      }
+      const hit = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+      hit.setAttribute('points', poly.getAttribute('points') || '');
+      hit.classList.add(BEAM_DRAG_HIT_CLASS);
+      hit.setAttribute('fill', 'transparent');
+      hit.setAttribute('stroke', 'transparent');
+      hit.setAttribute('stroke-width', String(BEAM_DRAG_HIT_STROKE));
+      // fill + thick stroke so the thin bar and a window-edge halo are both grabbable
+      hit.setAttribute('pointer-events', 'all');
+      beam.appendChild(hit);
+    });
+  });
+}
+
+function beamBarCenterY(beam: SVGGElement): number {
+  let sum = 0;
+  let count = 0;
+  beam.querySelectorAll<SVGPolygonElement>(':scope > polygon').forEach((poly) => {
+    if (poly.classList.contains(BEAM_DRAG_HIT_CLASS)) {
+      return;
+    }
+    const raw = poly.getAttribute('points') || '';
+    const nums = raw.trim().split(/[\s,]+/).map(Number).filter((n) => Number.isFinite(n));
+    for (let i = 1; i < nums.length; i += 2) {
+      sum += nums[i];
+      count += 1;
+    }
+  });
+  return count ? sum / count : 0;
+}
+
+function applyBeamDragPreview(beam: SVGGElement, dy: number): void {
+  beam.querySelectorAll<SVGPolygonElement>(':scope > polygon').forEach((poly) => {
+    if (dy === 0) {
+      poly.removeAttribute('transform');
+    } else {
+      poly.setAttribute('transform', `translate(0 ${dy})`);
+    }
+  });
+  // Ignore drag-hit clones when locating the visual bar.
+  const barY = beamBarCenterY(beam);
+  beam.querySelectorAll<SVGLineElement>('.stem line').forEach((line) => {
+    if (!line.hasAttribute('data-beam-drag-y1')) {
+      line.setAttribute('data-beam-drag-y1', line.getAttribute('y1') || '0');
+      line.setAttribute('data-beam-drag-y2', line.getAttribute('y2') || '0');
+    }
+    const o1 = Number(line.getAttribute('data-beam-drag-y1'));
+    const o2 = Number(line.getAttribute('data-beam-drag-y2'));
+    // Tip is the stem end closer to the beam bar (works for stem-up and stem-down).
+    const tipIsY1 = Math.abs(o1 - barY) <= Math.abs(o2 - barY);
+    if (tipIsY1) {
+      line.setAttribute('y1', String(o1 + dy));
+      line.setAttribute('y2', String(o2));
+    } else {
+      line.setAttribute('y1', String(o1));
+      line.setAttribute('y2', String(o2 + dy));
+    }
+  });
+}
+
+function clearBeamDragPreview(beam: SVGGElement): void {
+  beam.querySelectorAll<SVGPolygonElement>(':scope > polygon').forEach((poly) => {
+    poly.removeAttribute('transform');
+  });
+  beam.querySelectorAll<SVGLineElement>('.stem line').forEach((line) => {
+    if (!line.hasAttribute('data-beam-drag-y1')) {
+      return;
+    }
+    line.setAttribute('y1', line.getAttribute('data-beam-drag-y1') || '0');
+    line.setAttribute('y2', line.getAttribute('data-beam-drag-y2') || '0');
+    line.removeAttribute('data-beam-drag-y1');
+    line.removeAttribute('data-beam-drag-y2');
+  });
+}
+
+/**
+ * Resolve which selected beam (if any) should start a stem-length drag.
+ * Prefer an explicit bar/hit target; also allow stems/notes inside the
+ * already-selected beam so the drag does not require a pixel-perfect grab.
+ */
+function resolveBeamDragId(
+  target: EventTarget | null,
+  selectionBeamId: string | null,
+  selectedBeamId: string | null,
+): string | null {
+  if (!selectedBeamId) {
+    return null;
+  }
+  const hitId = beamIdContainingTarget(target) || selectionBeamId;
+  return hitId === selectedBeamId ? selectedBeamId : null;
+}
 
 const ImageViewer: React.FC<{
   imagePath?: string;
@@ -384,6 +534,11 @@ const ImageViewer: React.FC<{
   onScoreClick?: (hit: ScoreHit) => void;
   onSlurCurveCommit?: (slurId: string, points: SlurBezierPoints) => void;
   onNoteMoveCommit?: (noteId: string, loc: number, schenkerX: number) => void;
+  onBeamStemCommit?: (
+    beamId: string,
+    from: ScorePoint,
+    to: ScorePoint,
+  ) => void;
   onLabelOffsetCommit?: (
     labelId: string,
     from: ScorePoint,
@@ -401,6 +556,7 @@ const ImageViewer: React.FC<{
   onScoreClick,
   onSlurCurveCommit,
   onNoteMoveCommit,
+  onBeamStemCommit,
   onLabelOffsetCommit,
   noteDragEnabled = false,
   onZoomReady,
@@ -432,6 +588,8 @@ const ImageViewer: React.FC<{
   onSlurCurveCommitRef.current = onSlurCurveCommit;
   const onNoteMoveCommitRef = useRef(onNoteMoveCommit);
   onNoteMoveCommitRef.current = onNoteMoveCommit;
+  const onBeamStemCommitRef = useRef(onBeamStemCommit);
+  onBeamStemCommitRef.current = onBeamStemCommit;
   const onLabelOffsetCommitRef = useRef(onLabelOffsetCommit);
   onLabelOffsetCommitRef.current = onLabelOffsetCommit;
   const noteDragEnabledRef = useRef(noteDragEnabled);
@@ -445,6 +603,13 @@ const ImageViewer: React.FC<{
     startY: number;
   } | null>(null);
   const noteDidDragRef = useRef(false);
+  const beamDragRef = useRef<{
+    beamId: string;
+    startX: number;
+    startY: number;
+    dy: number;
+  } | null>(null);
+  const beamDidDragRef = useRef(false);
   const labelLocalDraftRef = useRef<LabelLocalDraft | null>(null);
   const [labelLocalDraft, setLabelLocalDraftState] = useState<LabelLocalDraft | null>(null);
   const labelDragRef = useRef<{
@@ -579,6 +744,7 @@ const ImageViewer: React.FC<{
 
     group.replaceChild(overlay, existing);
 
+    syncBeamDragHitTargets(overlay);
     applyNoteSelection(overlay, selectedNoteIdsRef.current);
     applyBeamSelection(overlay, selectedBeamIdRef.current);
     applySlurSelection(overlay, selectedSlurIdRef.current);
@@ -788,6 +954,26 @@ const ImageViewer: React.FC<{
     if (!overlay) {
       return;
     }
+    const hitBeamId = resolveBeamDragId(
+      e.target,
+      selection.beamId,
+      selectedBeamIdRef.current,
+    );
+    if (canDragSelectedBeam(overlay, selectedBeamIdRef.current, hitBeamId)) {
+      const point = clientToPageCoords(svgRef.current, e.clientX, e.clientY);
+      if (!point || !hitBeamId) {
+        return;
+      }
+      e.preventDefault();
+      beamDidDragRef.current = false;
+      beamDragRef.current = {
+        beamId: hitBeamId,
+        startX: point.x,
+        startY: point.y,
+        dy: 0,
+      };
+      return;
+    }
     if (selection.labelId && selectedLabelIdRef.current === selection.labelId) {
       const point = clientToPageCoords(svgRef.current, e.clientX, e.clientY);
       const meta = readSchenkerLabelMetadata(overlay, selection.labelId);
@@ -857,6 +1043,10 @@ const ImageViewer: React.FC<{
     }
     if (noteDidDragRef.current) {
       noteDidDragRef.current = false;
+      return;
+    }
+    if (beamDidDragRef.current) {
+      beamDidDragRef.current = false;
       return;
     }
     const svg = svgRef.current;
@@ -953,6 +1143,28 @@ const ImageViewer: React.FC<{
       setLabelLocalDraft(next);
       return;
     }
+    const beamDrag = beamDragRef.current;
+    if (beamDrag && svgRef.current) {
+      const overlay = svgRef.current.querySelector<SVGSVGElement>('.neon-container.active-page');
+      const beam = overlay?.querySelector<SVGGElement>(`#${CSS.escape(beamDrag.beamId)}.beam`);
+      const point = clientToPageCoords(svgRef.current, e.clientX, e.clientY);
+      if (!beam || !point) {
+        return;
+      }
+      const dy = point.y - beamDrag.startY;
+      const moved = Math.hypot(point.x - beamDrag.startX, dy);
+      if (moved >= BEAM_DRAG_THRESHOLD) {
+        beamDidDragRef.current = true;
+      }
+      if (!beamDidDragRef.current) {
+        return;
+      }
+      e.preventDefault();
+      document.body.style.cursor = 'ns-resize';
+      beamDragRef.current = { ...beamDrag, dy };
+      applyBeamDragPreview(beam, dy);
+      return;
+    }
     const noteDrag = noteDragRef.current;
     if (noteDrag && svgRef.current) {
       const overlay = svgRef.current.querySelector<SVGSVGElement>('.neon-container.active-page');
@@ -1015,6 +1227,32 @@ const ImageViewer: React.FC<{
         labelDrag.labelId,
         { x: labelDrag.fromX, y: labelDrag.fromY },
         to,
+      );
+      isDraggingRef.current = false;
+      dragStartDataRef.current = null;
+      return;
+    }
+    const beamDrag = beamDragRef.current;
+    if (beamDrag && svgRef.current) {
+      const overlay = svgRef.current.querySelector<SVGSVGElement>('.neon-container.active-page');
+      const beam = overlay?.querySelector<SVGGElement>(`#${CSS.escape(beamDrag.beamId)}.beam`);
+      const point = clientToPageCoords(svgRef.current, e.clientX, e.clientY);
+      beamDragRef.current = null;
+      document.body.style.cursor = '';
+      if (!beamDidDragRef.current) {
+        if (beam) {
+          clearBeamDragPreview(beam);
+        }
+        isDraggingRef.current = false;
+        dragStartDataRef.current = null;
+        return;
+      }
+      const toY = point ? point.y : beamDrag.startY + beamDrag.dy;
+      // Keep preview until re-render; commit stem lengths.
+      onBeamStemCommitRef.current?.(
+        beamDrag.beamId,
+        { x: beamDrag.startX, y: beamDrag.startY },
+        { x: beamDrag.startX, y: toY },
       );
       isDraggingRef.current = false;
       dragStartDataRef.current = null;

@@ -11,6 +11,35 @@ export function buildBeamNotesAction(noteIds: string[]): VerovioEditorAction {
   };
 }
 
+export function buildSchenkerBeamStemAdjustAction(
+  elementId: string,
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+): VerovioEditorAction {
+  const id = elementId.trim();
+  if (!id) {
+    throw new Error('schenkerBeamStemAdjust requires a non-empty elementId');
+  }
+  return {
+    action: 'schenkerBeamStemAdjust',
+    param: {
+      elementId: id,
+      fromX: Math.round(from.x),
+      fromY: Math.round(from.y),
+      toX: Math.round(to.x),
+      toY: Math.round(to.y),
+    },
+  };
+}
+
+export function canDragSelectedBeam(
+  overlay: SVGSVGElement | null,
+  selectedBeamId: string | null,
+  hitBeamId: string | null,
+): boolean {
+  return Boolean(overlay && selectedBeamId && hitBeamId && selectedBeamId === hitBeamId);
+}
+
 /**
  * A beamable note is an unbeamed Schenker eighth (minimFlag / quaverFlag):
  * dur=8 with a visible flag in the rendered SVG.

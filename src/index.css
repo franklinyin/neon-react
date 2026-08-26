@@ -200,10 +200,24 @@ g.repeatMark .text {
 
 .beam.selected-schenker-beam,
 .beam.selected-schenker-beam path,
+.beam.selected-schenker-beam polygon:not(.schenker-beam-drag-hit),
 .beam.selected-schenker-beam use {
     color: #d00;
     fill: currentColor;
     stroke: #d00;
+}
+
+/* Window-edge style resize cursor on the selected beam and its grab strip. */
+.beam.selected-schenker-beam,
+.beam.selected-schenker-beam * {
+    cursor: ns-resize;
+}
+
+.schenker-beam-drag-hit {
+    fill: transparent !important;
+    stroke: transparent !important;
+    cursor: ns-resize;
+    pointer-events: all;
 }
 
 .slur.selected-schenker-slur,

@@ -11,7 +11,7 @@ import { useVerovioScore } from './hooks/useVerovioScore';
 import { findNearestStaff, measureRenderedStaffs, yToLoc } from './lib/schenker/geometry';
 import { buildStructuralNoteInsertAction, type StructuralNoteKind } from './lib/schenker/structuralNote';
 import { buildDeleteElementsAction } from './lib/schenker/remove';
-import { activeScoreOverlay, buildBeamNotesAction, canBeamSelection } from './lib/schenker/beam';
+import { activeScoreOverlay, buildBeamNotesAction, buildSchenkerBeamStemAdjustAction, canBeamSelection } from './lib/schenker/beam';
 import { buildFlipAction, canFlipSelection } from './lib/schenker/flip';
 import {
   activeSlurOverlay,
@@ -293,6 +293,23 @@ function App() {
     }
     void editAndRender(action);
   }, [editAndRender]);
+
+  const handleBeamStemCommit = useCallback(
+    (beamId: string, from: ScorePoint, to: ScorePoint) => {
+      if (!isEditModeRef.current || activeInsertToolRef.current) {
+        return;
+      }
+      if (loadingRef.current || editingRef.current) {
+        return;
+      }
+      const action = buildSchenkerBeamStemAdjustAction(beamId, from, to);
+      if (import.meta.env.DEV) {
+        console.log('[beam-stem] schenkerBeamStemAdjust payload', action);
+      }
+      void editAndRender(action);
+    },
+    [editAndRender],
+  );
 
   const handleTextLabel = useCallback(() => {
     if (!isEditModeRef.current || activeInsertToolRef.current) {
@@ -642,6 +659,7 @@ function App() {
               onScoreClick={handleScoreClick}
               onSlurCurveCommit={handleSlurCurveCommit}
               onNoteMoveCommit={handleNoteMoveCommit}
+              onBeamStemCommit={handleBeamStemCommit}
               onLabelOffsetCommit={handleLabelOffsetCommit}
               noteDragEnabled={isEditMode && !activeInsertTool && !loading && !editing}
               onZoomReady={(zoom) => setZoomHandler(zoom)}
