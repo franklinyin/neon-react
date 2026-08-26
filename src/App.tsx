@@ -10,6 +10,7 @@ import { useZoom } from './hooks/useZoom';
 import { useVerovioScore } from './hooks/useVerovioScore';
 import { findNearestStaff, measureRenderedStaffs, yToLoc } from './lib/schenker/geometry';
 import { buildStructuralNoteInsertAction, type StructuralNoteKind } from './lib/schenker/structuralNote';
+import { buildSchenkerDoubleBarLineInsertAction } from './lib/schenker/barline';
 import { buildDeleteElementsAction } from './lib/schenker/remove';
 import { activeScoreOverlay, buildBeamNotesAction, buildSchenkerBeamStemAdjustAction, canBeamSelection } from './lib/schenker/beam';
 import { buildFlipAction, canFlipSelection } from './lib/schenker/flip';
@@ -58,6 +59,7 @@ function App() {
   const [activeInsertTool, setActiveInsertTool] = useState<InsertTool>(null);
   const [selectedNoteIds, setSelectedNoteIds] = useState<string[]>([]);
   const [selectedBeamId, setSelectedBeamId] = useState<string | null>(null);
+  const [selectedBarLineId, setSelectedBarLineId] = useState<string | null>(null);
   const [selectedSlurId, setSelectedSlurId] = useState<string | null>(null);
   const [selectedLabelId, setSelectedLabelId] = useState<string | null>(null);
   const { svg, loading, editing, error, editAndRender, getMEI, loadMei } = useVerovioScore(CF005_MEI);
@@ -65,6 +67,7 @@ function App() {
   const activeInsertToolRef = useRef(activeInsertTool);
   const selectedNoteIdsRef = useRef(selectedNoteIds);
   const selectedBeamIdRef = useRef(selectedBeamId);
+  const selectedBarLineIdRef = useRef(selectedBarLineId);
   const selectedSlurIdRef = useRef(selectedSlurId);
   const selectedLabelIdRef = useRef(selectedLabelId);
   const editingRef = useRef(editing);
@@ -76,6 +79,7 @@ function App() {
   activeInsertToolRef.current = activeInsertTool;
   selectedNoteIdsRef.current = selectedNoteIds;
   selectedBeamIdRef.current = selectedBeamId;
+  selectedBarLineIdRef.current = selectedBarLineId;
   selectedSlurIdRef.current = selectedSlurId;
   selectedLabelIdRef.current = selectedLabelId;
   editingRef.current = editing;
@@ -90,6 +94,7 @@ function App() {
     setActiveInsertTool(null);
     setSelectedNoteIds([]);
     setSelectedBeamId(null);
+    setSelectedBarLineId(null);
     setSelectedSlurId(null);
     setSelectedLabelId(null);
   }, []);
@@ -102,6 +107,7 @@ function App() {
     if (tool) {
       setSelectedNoteIds([]);
       setSelectedBeamId(null);
+      setSelectedBarLineId(null);
       setSelectedSlurId(null);
       setSelectedLabelId(null);
     }
@@ -118,6 +124,9 @@ function App() {
     if (selectedBeamIdRef.current) {
       ids.push(selectedBeamIdRef.current);
     }
+    if (selectedBarLineIdRef.current) {
+      ids.push(selectedBarLineIdRef.current);
+    }
     if (selectedSlurIdRef.current) {
       ids.push(selectedSlurIdRef.current);
     }
@@ -132,6 +141,9 @@ function App() {
     if (ok) {
       setSelectedNoteIds([]);
       setSelectedBeamId(null);
+      setSelectedBarLineId(null);
+      setSelectedSlurId(null);
+      setSelectedLabelId(null);
     }
   }, [editAndRender]);
 
@@ -407,7 +419,10 @@ function App() {
   const dashedSlurEnabled = resetSlurEnabled;
 
   const selectedCount =
-    selectedNoteIds.length + (selectedBeamId ? 1 : 0) + (selectedSlurId ? 1 : 0);
+    selectedNoteIds.length +
+    (selectedBeamId ? 1 : 0) +
+    (selectedBarLineId ? 1 : 0) +
+    (selectedSlurId ? 1 : 0);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -418,6 +433,7 @@ function App() {
         setActiveInsertTool(null);
         setSelectedNoteIds([]);
         setSelectedBeamId(null);
+        setSelectedBarLineId(null);
         setSelectedSlurId(null);
         setSelectedLabelId(null);
         return;
@@ -434,6 +450,7 @@ function App() {
       const hasSelection =
         selectedNoteIdsRef.current.length > 0 ||
         Boolean(selectedBeamIdRef.current) ||
+        Boolean(selectedBarLineIdRef.current) ||
         Boolean(selectedSlurIdRef.current);
       if (!hasSelection) {
         return;
@@ -466,12 +483,33 @@ function App() {
           console.warn('[phase3] no staff found for structural note');
           return;
         }
+        if (!Number.isFinite(hit.point.x) || !Number.isFinite(hit.point.y)) {
+          console.warn('[phase3] could not determine click position');
+          return;
+        }
+
+        if (insertTool === 'doubleBarline') {
+          const action = buildSchenkerDoubleBarLineInsertAction({
+            staffId: staff.id,
+            x: hit.point.x,
+            y: hit.point.y,
+          });
+          if (import.meta.env.DEV) {
+            console.log('[barline] insert payload', action);
+          }
+          void editAndRender(action);
+          return;
+        }
+
         const loc = yToLoc(hit.point.y, staff);
-        if (!Number.isFinite(loc) || !Number.isFinite(hit.point.x) || !Number.isFinite(hit.point.y)) {
+        if (!Number.isFinite(loc)) {
           console.warn('[phase3] could not determine staff position');
           return;
         }
-        const kindByTool: Record<Exclude<InsertTool, null>, StructuralNoteKind> = {
+        const kindByTool: Record<
+          Exclude<InsertTool, null | 'doubleBarline'>,
+          StructuralNoteKind
+        > = {
           openNotehead: 'open',
           notehead: 'filled',
           quaver: 'quaver',
@@ -508,8 +546,17 @@ function App() {
       }
 
       // Selection mode (default while Edit MEI is active and no insert tool).
+      if (hit.barLineId) {
+        setSelectedBarLineId(hit.barLineId);
+        setSelectedBeamId(null);
+        setSelectedNoteIds([]);
+        setSelectedSlurId(null);
+        setSelectedLabelId(null);
+        return;
+      }
       if (hit.beamId) {
         setSelectedBeamId(hit.beamId);
+        setSelectedBarLineId(null);
         setSelectedNoteIds([]);
         setSelectedSlurId(null);
         setSelectedLabelId(null);
@@ -519,6 +566,7 @@ function App() {
         setSelectedSlurId(hit.slurId);
         setSelectedNoteIds([]);
         setSelectedBeamId(null);
+        setSelectedBarLineId(null);
         setSelectedLabelId(null);
         return;
       }
@@ -526,18 +574,21 @@ function App() {
         setSelectedLabelId(hit.labelId);
         setSelectedNoteIds([]);
         setSelectedBeamId(null);
+        setSelectedBarLineId(null);
         setSelectedSlurId(null);
         return;
       }
       if (!hit.noteId) {
         setSelectedNoteIds([]);
         setSelectedBeamId(null);
+        setSelectedBarLineId(null);
         setSelectedSlurId(null);
         setSelectedLabelId(null);
         return;
       }
       const noteId = hit.noteId;
       setSelectedBeamId(null);
+      setSelectedBarLineId(null);
       setSelectedSlurId(null);
       setSelectedLabelId(null);
       if (hit.additive) {
@@ -598,6 +649,7 @@ function App() {
       setActiveInsertTool(null);
       setSelectedNoteIds([]);
       setSelectedBeamId(null);
+      setSelectedBarLineId(null);
       setSelectedSlurId(null);
       setSelectedLabelId(null);
     } catch (err) {
@@ -654,6 +706,7 @@ function App() {
               meiSvg={svg}
               selectedNoteIds={selectedNoteIds}
               selectedBeamId={selectedBeamId}
+              selectedBarLineId={selectedBarLineId}
               selectedSlurId={selectedSlurId}
               selectedLabelId={selectedLabelId}
               onScoreClick={handleScoreClick}

@@ -9,6 +9,7 @@ export type InsertTool =
   | 'minim'
   | 'quaverFlag'
   | 'minimFlag'
+  | 'doubleBarline'
   | null;
 
 const INSERT_TOOLS: ReadonlyArray<Exclude<InsertTool, null>> = [
@@ -18,6 +19,7 @@ const INSERT_TOOLS: ReadonlyArray<Exclude<InsertTool, null>> = [
   'minim',
   'quaverFlag',
   'minimFlag',
+  'doubleBarline',
 ];
 
 function isInsertTool(id: string): id is Exclude<InsertTool, null> {

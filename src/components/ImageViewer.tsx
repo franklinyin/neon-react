@@ -36,6 +36,8 @@ export type ScoreHit = {
   noteId: string | null;
   /** xml:id of the nearest `.beam` when the beam bar itself is clicked. */
   beamId: string | null;
+  /** xml:id of the nearest `.barLine` when a free-X barline is clicked. */
+  barLineId: string | null;
   /** xml:id of the nearest `.slur` when the slur path is clicked. */
   slurId: string | null;
   /** xml:id of the nearest native `.dir` label when the label is clicked. */
@@ -45,6 +47,7 @@ export type ScoreHit = {
 
 const SELECTED_NOTE_CLASS = 'selected-schenker-note';
 const SELECTED_BEAM_CLASS = 'selected-schenker-beam';
+const SELECTED_BARLINE_CLASS = 'selected-schenker-barline';
 const SELECTED_SLUR_CLASS = 'selected-schenker-slur';
 const SLUR_HANDLES_LAYER_ID = 'schenker-slur-handles';
 const SLUR_PREVIEW_LAYER_ID = 'schenker-slur-preview';
@@ -54,6 +57,7 @@ const LABEL_DRAG_THRESHOLD = 5;
 function selectionFromEvent(event: React.MouseEvent): {
   noteId: string | null;
   beamId: string | null;
+  barLineId: string | null;
   slurId: string | null;
   labelId: string | null;
 } {
@@ -68,39 +72,43 @@ function selectionFromEvent(event: React.MouseEvent): {
   for (const el of candidates) {
     const slur = el.closest('.slur');
     if (slur?.id && (el.tagName === 'path' || el.closest('.slur') === slur)) {
-      return { noteId: null, beamId: null, slurId: slur.id, labelId: null };
+      return { noteId: null, beamId: null, barLineId: null, slurId: slur.id, labelId: null };
     }
     const dir = el.closest('.dir');
     if (dir?.id) {
-      return { noteId: null, beamId: null, slurId: null, labelId: dir.id };
+      return { noteId: null, beamId: null, barLineId: null, slurId: null, labelId: dir.id };
     }
     // Beam bar / drag hit before notes: note bounding-boxes otherwise swallow the bar.
     const beamFromHit = beamIdFromDragHit(el);
     if (beamFromHit) {
-      return { noteId: null, beamId: beamFromHit, slurId: null, labelId: null };
+      return { noteId: null, beamId: beamFromHit, barLineId: null, slurId: null, labelId: null };
     }
     if (isBeamBarGraphic(el)) {
       const beam = el.closest('.beam');
       if (beam?.id) {
-        return { noteId: null, beamId: beam.id, slurId: null, labelId: null };
+        return { noteId: null, beamId: beam.id, barLineId: null, slurId: null, labelId: null };
       }
     }
     // Keep a selected beam sticky: presses on its stems stay on the beam so
     // drag can start (and click does not flip selection to a child note).
     const selectedBeam = el.closest(`.beam.${SELECTED_BEAM_CLASS}`);
     if (selectedBeam?.id) {
-      return { noteId: null, beamId: selectedBeam.id, slurId: null, labelId: null };
+      return { noteId: null, beamId: selectedBeam.id, barLineId: null, slurId: null, labelId: null };
+    }
+    const barLine = el.closest('.barLine');
+    if (barLine?.id) {
+      return { noteId: null, beamId: null, barLineId: barLine.id, slurId: null, labelId: null };
     }
     const note = el.closest('.note');
     if (note?.id) {
-      return { noteId: note.id, beamId: null, slurId: null, labelId: null };
+      return { noteId: note.id, beamId: null, barLineId: null, slurId: null, labelId: null };
     }
     const beam = el.closest('.beam');
     if (beam?.id) {
-      return { noteId: null, beamId: beam.id, slurId: null, labelId: null };
+      return { noteId: null, beamId: beam.id, barLineId: null, slurId: null, labelId: null };
     }
   }
-  return { noteId: null, beamId: null, slurId: null, labelId: null };
+  return { noteId: null, beamId: null, barLineId: null, slurId: null, labelId: null };
 }
 
 function applyNoteSelection(overlay: SVGSVGElement, selectedNoteIds: string[]): void {
@@ -128,6 +136,19 @@ function applyBeamSelection(overlay: SVGSVGElement, selectedBeamId: string | nul
   const beam = overlay.querySelector(`#${CSS.escape(selectedBeamId)}.beam`);
   if (beam) {
     beam.classList.add(SELECTED_BEAM_CLASS, 'selected');
+  }
+}
+
+function applyBarLineSelection(overlay: SVGSVGElement, selectedBarLineId: string | null): void {
+  overlay.querySelectorAll(`.barLine.${SELECTED_BARLINE_CLASS}`).forEach((barLine) => {
+    barLine.classList.remove(SELECTED_BARLINE_CLASS, 'selected');
+  });
+  if (!selectedBarLineId) {
+    return;
+  }
+  const barLine = overlay.querySelector(`#${CSS.escape(selectedBarLineId)}.barLine`);
+  if (barLine) {
+    barLine.classList.add(SELECTED_BARLINE_CLASS, 'selected');
   }
 }
 
@@ -529,6 +550,7 @@ const ImageViewer: React.FC<{
   meiSvg?: string | null;
   selectedNoteIds?: string[];
   selectedBeamId?: string | null;
+  selectedBarLineId?: string | null;
   selectedSlurId?: string | null;
   selectedLabelId?: string | null;
   onScoreClick?: (hit: ScoreHit) => void;
@@ -551,6 +573,7 @@ const ImageViewer: React.FC<{
   meiSvg = null,
   selectedNoteIds = [],
   selectedBeamId = null,
+  selectedBarLineId = null,
   selectedSlurId = null,
   selectedLabelId = null,
   onScoreClick,
@@ -576,6 +599,8 @@ const ImageViewer: React.FC<{
   selectedNoteIdsRef.current = selectedNoteIds;
   const selectedBeamIdRef = useRef(selectedBeamId);
   selectedBeamIdRef.current = selectedBeamId;
+  const selectedBarLineIdRef = useRef(selectedBarLineId);
+  selectedBarLineIdRef.current = selectedBarLineId;
   const selectedSlurIdRef = useRef(selectedSlurId);
   selectedSlurIdRef.current = selectedSlurId;
   const selectedLabelIdRef = useRef(selectedLabelId);
@@ -747,6 +772,7 @@ const ImageViewer: React.FC<{
     syncBeamDragHitTargets(overlay);
     applyNoteSelection(overlay, selectedNoteIdsRef.current);
     applyBeamSelection(overlay, selectedBeamIdRef.current);
+    applyBarLineSelection(overlay, selectedBarLineIdRef.current);
     applySlurSelection(overlay, selectedSlurIdRef.current);
     applyLabelSelection(overlay, selectedLabelIdRef.current);
 
@@ -775,9 +801,10 @@ const ImageViewer: React.FC<{
     }
     applyNoteSelection(overlay, selectedNoteIds);
     applyBeamSelection(overlay, selectedBeamId);
+    applyBarLineSelection(overlay, selectedBarLineId);
     applySlurSelection(overlay, selectedSlurId);
     applyLabelSelection(overlay, selectedLabelId);
-  }, [selectedNoteIds, selectedBeamId, selectedSlurId, selectedLabelId]);
+  }, [selectedNoteIds, selectedBeamId, selectedBarLineId, selectedSlurId, selectedLabelId]);
 
   const syncSlurEditorLayer = useCallback(() => {
     const overlay = svgRef.current?.querySelector<SVGSVGElement>('.neon-container.active-page');
@@ -1069,6 +1096,7 @@ const ImageViewer: React.FC<{
       point,
       noteId: selection.noteId,
       beamId: selection.beamId,
+      barLineId: selection.barLineId,
       slurId: selection.slurId,
       labelId: selection.labelId,
       additive: e.metaKey || e.ctrlKey,

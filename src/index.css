@@ -213,6 +213,25 @@ g.repeatMark .text {
     cursor: ns-resize;
 }
 
+.beam.selected-schenker-beam .schenker-beam-drag-hit {
+    cursor: ns-resize;
+}
+
+.barLine.selected-schenker-barline,
+.barLine.selected-schenker-barline path,
+.barLine.selected-schenker-barline line,
+.barLine.selected-schenker-barline rect {
+    color: #d00;
+    fill: currentColor;
+    stroke: #d00;
+}
+
+/* Thin vertical bars are hard to click; widen the hit target. */
+#svg_group .barLine {
+    cursor: pointer;
+    pointer-events: bounding-box;
+}
+
 .schenker-beam-drag-hit {
     fill: transparent !important;
     stroke: transparent !important;

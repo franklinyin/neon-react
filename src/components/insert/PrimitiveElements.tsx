@@ -34,6 +34,7 @@ const IMAGE_SCALE_CONFIG = {
   minim: 0.95,
   quaverFlag: 0.95,
   minimFlag: 0.95,
+  doubleBarline: 0.85,
 } as const;
 
 /**
@@ -81,6 +82,12 @@ const PrimitiveElements: React.FC<PrimitiveElementsProps> = ({
       label: 'Minim with flag',
       imagePath: '/assets/img/minimFlag.svg',
       ariaLabel: 'minim with flag',
+    },
+    {
+      id: 'doubleBarline',
+      label: 'Double barline',
+      imagePath: '/assets/img/doubleBarline.svg',
+      ariaLabel: 'double barline',
     },
   ];
 
