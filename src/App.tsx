@@ -25,7 +25,7 @@ import {
 import { createMeiBlob, downloadMei } from './lib/mei/downloadMei';
 import { readLocalMeiFile } from './lib/mei/openMei';
 import { buildSchenkerNoteMoveAction } from './lib/schenker/move';
-import { buildSchenkerLabelAction, canLabelSelection } from './lib/schenker/label';
+import { buildSchenkerLabelAction, buildSchenkerLabelOffsetAction, canLabelSelection } from './lib/schenker/label';
 
 const CF005_IMAGE = '/samples/CF-005.png';
 const CF005_MEI = '/samples/CF-005.mei';
@@ -58,12 +58,14 @@ function App() {
   const [selectedNoteIds, setSelectedNoteIds] = useState<string[]>([]);
   const [selectedBeamId, setSelectedBeamId] = useState<string | null>(null);
   const [selectedSlurId, setSelectedSlurId] = useState<string | null>(null);
+  const [selectedLabelId, setSelectedLabelId] = useState<string | null>(null);
   const { svg, loading, editing, error, editAndRender, getMEI, loadMei } = useVerovioScore(CF005_MEI);
   const isEditModeRef = useRef(isEditMode);
   const activeInsertToolRef = useRef(activeInsertTool);
   const selectedNoteIdsRef = useRef(selectedNoteIds);
   const selectedBeamIdRef = useRef(selectedBeamId);
   const selectedSlurIdRef = useRef(selectedSlurId);
+  const selectedLabelIdRef = useRef(selectedLabelId);
   const editingRef = useRef(editing);
   const loadingRef = useRef(loading);
   const downloadingRef = useRef(false);
@@ -74,6 +76,7 @@ function App() {
   selectedNoteIdsRef.current = selectedNoteIds;
   selectedBeamIdRef.current = selectedBeamId;
   selectedSlurIdRef.current = selectedSlurId;
+  selectedLabelIdRef.current = selectedLabelId;
   editingRef.current = editing;
   loadingRef.current = loading;
 
@@ -87,6 +90,7 @@ function App() {
     setSelectedNoteIds([]);
     setSelectedBeamId(null);
     setSelectedSlurId(null);
+    setSelectedLabelId(null);
   }, []);
 
   const handleInsertToolChange = useCallback((tool: InsertTool) => {
@@ -98,6 +102,7 @@ function App() {
       setSelectedNoteIds([]);
       setSelectedBeamId(null);
       setSelectedSlurId(null);
+      setSelectedLabelId(null);
     }
   }, []);
 
@@ -279,7 +284,15 @@ function App() {
     }
     const overlay = activeScoreOverlay();
     const noteIds = selectedNoteIdsRef.current;
-    if (!canLabelSelection(overlay, noteIds, selectedBeamIdRef.current, selectedSlurIdRef.current)) {
+    if (
+      !canLabelSelection(
+        overlay,
+        noteIds,
+        selectedBeamIdRef.current,
+        selectedSlurIdRef.current,
+        selectedLabelIdRef.current,
+      )
+    ) {
       return;
     }
     const value = window.prompt('Number', '3');
@@ -296,6 +309,23 @@ function App() {
     }
     void editAndRender(action);
   }, [editAndRender]);
+
+  const handleLabelOffsetCommit = useCallback(
+    (labelId: string, from: ScorePoint, to: ScorePoint) => {
+      if (!isEditModeRef.current || activeInsertToolRef.current) {
+        return;
+      }
+      if (loadingRef.current || editingRef.current) {
+        return;
+      }
+      const action = buildSchenkerLabelOffsetAction(labelId, from, to);
+      if (import.meta.env.DEV) {
+        console.log('[nativedir-n4] schenkerLabelOffset payload', action);
+      }
+      void editAndRender(action);
+    },
+    [editAndRender],
+  );
 
   const beamEnabled = useMemo(() => {
     if (!isEditMode || activeInsertTool) {
@@ -322,8 +352,14 @@ function App() {
     if (!isEditMode || activeInsertTool) {
       return false;
     }
-    return canLabelSelection(activeScoreOverlay(), selectedNoteIds, selectedBeamId, selectedSlurId);
-  }, [isEditMode, activeInsertTool, selectedNoteIds, selectedBeamId, selectedSlurId, svg]);
+    return canLabelSelection(
+      activeScoreOverlay(),
+      selectedNoteIds,
+      selectedBeamId,
+      selectedSlurId,
+      selectedLabelId,
+    );
+  }, [isEditMode, activeInsertTool, selectedNoteIds, selectedBeamId, selectedSlurId, selectedLabelId, svg]);
 
   const resetSlurEnabled = useMemo(() => {
     if (!isEditMode || activeInsertTool) {
@@ -344,6 +380,8 @@ function App() {
         setActiveInsertTool(null);
         setSelectedNoteIds([]);
         setSelectedBeamId(null);
+        setSelectedSlurId(null);
+        setSelectedLabelId(null);
         return;
       }
       if (event.key !== 'Delete' && event.key !== 'Backspace') {
@@ -436,23 +474,34 @@ function App() {
         setSelectedBeamId(hit.beamId);
         setSelectedNoteIds([]);
         setSelectedSlurId(null);
+        setSelectedLabelId(null);
         return;
       }
       if (hit.slurId) {
         setSelectedSlurId(hit.slurId);
         setSelectedNoteIds([]);
         setSelectedBeamId(null);
+        setSelectedLabelId(null);
+        return;
+      }
+      if (hit.labelId) {
+        setSelectedLabelId(hit.labelId);
+        setSelectedNoteIds([]);
+        setSelectedBeamId(null);
+        setSelectedSlurId(null);
         return;
       }
       if (!hit.noteId) {
         setSelectedNoteIds([]);
         setSelectedBeamId(null);
         setSelectedSlurId(null);
+        setSelectedLabelId(null);
         return;
       }
       const noteId = hit.noteId;
       setSelectedBeamId(null);
       setSelectedSlurId(null);
+      setSelectedLabelId(null);
       if (hit.additive) {
         setSelectedNoteIds((current) =>
           current.includes(noteId) ? current.filter((id) => id !== noteId) : [...current, noteId],
@@ -512,6 +561,7 @@ function App() {
       setSelectedNoteIds([]);
       setSelectedBeamId(null);
       setSelectedSlurId(null);
+      setSelectedLabelId(null);
     } catch (err) {
       console.error('[open-mei] failed', err);
     }
@@ -567,9 +617,11 @@ function App() {
               selectedNoteIds={selectedNoteIds}
               selectedBeamId={selectedBeamId}
               selectedSlurId={selectedSlurId}
+              selectedLabelId={selectedLabelId}
               onScoreClick={handleScoreClick}
               onSlurCurveCommit={handleSlurCurveCommit}
               onNoteMoveCommit={handleNoteMoveCommit}
+              onLabelOffsetCommit={handleLabelOffsetCommit}
               noteDragEnabled={isEditMode && !activeInsertTool && !loading && !editing}
               onZoomReady={(zoom) => setZoomHandler(zoom)}
             />

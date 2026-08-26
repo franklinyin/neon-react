@@ -150,6 +150,32 @@ g.repeatMark .text {
     fill: #d00;
 }
 
+.dir.selected-schenker-label {
+    cursor: grab;
+}
+
+.dir.selected-schenker-label text,
+.dir.selected-schenker-label tspan {
+    fill: #d00;
+}
+
+.dir.schenker-label-suppressed {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.schenker-label-tether {
+    stroke: #888;
+    stroke-width: 2;
+    stroke-dasharray: 6 6;
+    fill: none;
+}
+
+.schenker-label-preview-text {
+    fill: #d00;
+    pointer-events: none;
+}
+
 /*
  * Presentation-only Structural Note highlight. Verovio glyphs follow
  * `color` / `currentColor`. Do not put this class on staff or clef groups.

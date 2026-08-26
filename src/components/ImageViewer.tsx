@@ -2,6 +2,15 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { useZoom } from '../hooks/useZoom';
 import { locToY, measureRenderedStaffs, yToLoc } from '../lib/schenker/geometry';
 import { canMoveSchenkerNote } from '../lib/schenker/move';
+import { readSchenkerLabelMetadata } from '../lib/schenker/label';
+import {
+  applyLabelSelection,
+  applyLabelSuppression,
+  removeLabelPreview,
+  renderLabelPreview,
+  updateLabelPreviewInPlace,
+  type LabelLocalDraft,
+} from '../lib/schenker/labelDraft';
 import { readSlurBezierFromMetadata, type SlurBezierPoints } from '../lib/schenker/slur';
 import {
   buildSlurBezierPathD,
@@ -28,6 +37,8 @@ export type ScoreHit = {
   beamId: string | null;
   /** xml:id of the nearest `.slur` when the slur path is clicked. */
   slurId: string | null;
+  /** xml:id of the nearest native `.dir` label when the label is clicked. */
+  labelId: string | null;
   additive: boolean;
 };
 
@@ -37,11 +48,13 @@ const SELECTED_SLUR_CLASS = 'selected-schenker-slur';
 const SLUR_HANDLES_LAYER_ID = 'schenker-slur-handles';
 const SLUR_PREVIEW_LAYER_ID = 'schenker-slur-preview';
 const SHOW_SLUR_HANDLES = true;
+const LABEL_DRAG_THRESHOLD = 5;
 
 function selectionFromEvent(event: React.MouseEvent): {
   noteId: string | null;
   beamId: string | null;
   slurId: string | null;
+  labelId: string | null;
 } {
   const candidates: Element[] = [];
   if (event.target instanceof Element) {
@@ -54,18 +67,22 @@ function selectionFromEvent(event: React.MouseEvent): {
   for (const el of candidates) {
     const slur = el.closest('.slur');
     if (slur?.id && (el.tagName === 'path' || el.closest('.slur') === slur)) {
-      return { noteId: null, beamId: null, slurId: slur.id };
+      return { noteId: null, beamId: null, slurId: slur.id, labelId: null };
+    }
+    const dir = el.closest('.dir');
+    if (dir?.id) {
+      return { noteId: null, beamId: null, slurId: null, labelId: dir.id };
     }
     const note = el.closest('.note');
     if (note?.id) {
-      return { noteId: note.id, beamId: null, slurId: null };
+      return { noteId: note.id, beamId: null, slurId: null, labelId: null };
     }
     const beam = el.closest('.beam');
     if (beam?.id) {
-      return { noteId: null, beamId: beam.id, slurId: null };
+      return { noteId: null, beamId: beam.id, slurId: null, labelId: null };
     }
   }
-  return { noteId: null, beamId: null, slurId: null };
+  return { noteId: null, beamId: null, slurId: null, labelId: null };
 }
 
 function applyNoteSelection(overlay: SVGSVGElement, selectedNoteIds: string[]): void {
@@ -363,9 +380,15 @@ const ImageViewer: React.FC<{
   selectedNoteIds?: string[];
   selectedBeamId?: string | null;
   selectedSlurId?: string | null;
+  selectedLabelId?: string | null;
   onScoreClick?: (hit: ScoreHit) => void;
   onSlurCurveCommit?: (slurId: string, points: SlurBezierPoints) => void;
   onNoteMoveCommit?: (noteId: string, loc: number, schenkerX: number) => void;
+  onLabelOffsetCommit?: (
+    labelId: string,
+    from: ScorePoint,
+    to: ScorePoint,
+  ) => void;
   noteDragEnabled?: boolean;
   onZoomReady?: (zoom: ReturnType<typeof useZoom>) => void;
 }> = ({
@@ -374,9 +397,11 @@ const ImageViewer: React.FC<{
   selectedNoteIds = [],
   selectedBeamId = null,
   selectedSlurId = null,
+  selectedLabelId = null,
   onScoreClick,
   onSlurCurveCommit,
   onNoteMoveCommit,
+  onLabelOffsetCommit,
   noteDragEnabled = false,
   onZoomReady,
 }) => {
@@ -397,6 +422,8 @@ const ImageViewer: React.FC<{
   selectedBeamIdRef.current = selectedBeamId;
   const selectedSlurIdRef = useRef(selectedSlurId);
   selectedSlurIdRef.current = selectedSlurId;
+  const selectedLabelIdRef = useRef(selectedLabelId);
+  selectedLabelIdRef.current = selectedLabelId;
   const slurLocalDraftRef = useRef<SlurLocalDraft | null>(null);
   const [slurLocalDraft, setSlurLocalDraftState] = useState<SlurLocalDraft | null>(null);
   const slurDragRef = useRef<{ handleIndex: number; points: SlurBezierPoints } | null>(null);
@@ -405,6 +432,8 @@ const ImageViewer: React.FC<{
   onSlurCurveCommitRef.current = onSlurCurveCommit;
   const onNoteMoveCommitRef = useRef(onNoteMoveCommit);
   onNoteMoveCommitRef.current = onNoteMoveCommit;
+  const onLabelOffsetCommitRef = useRef(onLabelOffsetCommit);
+  onLabelOffsetCommitRef.current = onLabelOffsetCommit;
   const noteDragEnabledRef = useRef(noteDragEnabled);
   noteDragEnabledRef.current = noteDragEnabled;
   const noteDragRef = useRef<{
@@ -416,10 +445,25 @@ const ImageViewer: React.FC<{
     startY: number;
   } | null>(null);
   const noteDidDragRef = useRef(false);
+  const labelLocalDraftRef = useRef<LabelLocalDraft | null>(null);
+  const [labelLocalDraft, setLabelLocalDraftState] = useState<LabelLocalDraft | null>(null);
+  const labelDragRef = useRef<{
+    labelId: string;
+    grabDx: number;
+    grabDy: number;
+    fromX: number;
+    fromY: number;
+  } | null>(null);
+  const labelDidDragRef = useRef(false);
 
   const setSlurLocalDraft = useCallback((draft: SlurLocalDraft | null) => {
     slurLocalDraftRef.current = draft;
     setSlurLocalDraftState(draft);
+  }, []);
+
+  const setLabelLocalDraft = useCallback((draft: LabelLocalDraft | null) => {
+    labelLocalDraftRef.current = draft;
+    setLabelLocalDraftState(draft);
   }, []);
 
   useEffect(() => {
@@ -538,6 +582,7 @@ const ImageViewer: React.FC<{
     applyNoteSelection(overlay, selectedNoteIdsRef.current);
     applyBeamSelection(overlay, selectedBeamIdRef.current);
     applySlurSelection(overlay, selectedSlurIdRef.current);
+    applyLabelSelection(overlay, selectedLabelIdRef.current);
 
     if (import.meta.env.DEV) {
       const staffs = measureRenderedStaffs(overlay);
@@ -565,7 +610,8 @@ const ImageViewer: React.FC<{
     applyNoteSelection(overlay, selectedNoteIds);
     applyBeamSelection(overlay, selectedBeamId);
     applySlurSelection(overlay, selectedSlurId);
-  }, [selectedNoteIds, selectedBeamId, selectedSlurId]);
+    applyLabelSelection(overlay, selectedLabelId);
+  }, [selectedNoteIds, selectedBeamId, selectedSlurId, selectedLabelId]);
 
   const syncSlurEditorLayer = useCallback(() => {
     const overlay = svgRef.current?.querySelector<SVGSVGElement>('.neon-container.active-page');
@@ -647,6 +693,47 @@ const ImageViewer: React.FC<{
     setSlurLocalDraft(null);
   }, [meiSvg, setSlurLocalDraft]);
 
+  const syncLabelEditorLayer = useCallback(() => {
+    const overlay = svgRef.current?.querySelector<SVGSVGElement>('.neon-container.active-page');
+    if (!overlay) {
+      return;
+    }
+    const labelId = selectedLabelIdRef.current;
+    const draft = labelLocalDraftRef.current;
+    const isDragging = labelDragRef.current !== null;
+    const hasDraft = Boolean(labelId && draft?.labelId === labelId);
+
+    applyLabelSuppression(overlay, labelId, hasDraft);
+
+    if (!labelId || !hasDraft || !draft) {
+      removeLabelPreview(overlay);
+      return;
+    }
+
+    if (isDragging) {
+      updateLabelPreviewInPlace(overlay, draft);
+    } else {
+      renderLabelPreview(overlay, draft);
+    }
+  }, [labelLocalDraft]);
+
+  useEffect(() => {
+    syncLabelEditorLayer();
+  }, [syncLabelEditorLayer, selectedLabelId, labelLocalDraft, meiSvg]);
+
+  useEffect(() => {
+    setLabelLocalDraft(null);
+    labelDragRef.current = null;
+    labelDidDragRef.current = false;
+  }, [selectedLabelId, setLabelLocalDraft]);
+
+  useEffect(() => {
+    if (labelDragRef.current) {
+      return;
+    }
+    setLabelLocalDraft(null);
+  }, [meiSvg, setLabelLocalDraft]);
+
   useEffect(() => {
     if (!import.meta.env.DEV) {
       return;
@@ -698,7 +785,32 @@ const ImageViewer: React.FC<{
     }
     const overlay = svgRef.current.querySelector<SVGSVGElement>('.neon-container.active-page');
     const selection = selectionFromEvent(e);
-    if (!overlay || !selection.noteId) {
+    if (!overlay) {
+      return;
+    }
+    if (selection.labelId && selectedLabelIdRef.current === selection.labelId) {
+      const point = clientToPageCoords(svgRef.current, e.clientX, e.clientY);
+      const meta = readSchenkerLabelMetadata(overlay, selection.labelId);
+      const current =
+        labelLocalDraftRef.current?.labelId === selection.labelId
+          ? labelLocalDraftRef.current
+          : meta
+            ? { labelId: selection.labelId, x: meta.label.x, y: meta.label.y }
+            : null;
+      if (!point || !current) {
+        return;
+      }
+      labelDidDragRef.current = false;
+      labelDragRef.current = {
+        labelId: selection.labelId,
+        grabDx: current.x - point.x,
+        grabDy: current.y - point.y,
+        fromX: current.x,
+        fromY: current.y,
+      };
+      return;
+    }
+    if (!selection.noteId) {
       return;
     }
     if (!canMoveSchenkerNote(overlay, selectedNoteIdsRef.current, selection.noteId)) {
@@ -739,6 +851,10 @@ const ImageViewer: React.FC<{
       slurDidDragRef.current = false;
       return;
     }
+    if (labelDidDragRef.current) {
+      labelDidDragRef.current = false;
+      return;
+    }
     if (noteDidDragRef.current) {
       noteDidDragRef.current = false;
       return;
@@ -764,6 +880,7 @@ const ImageViewer: React.FC<{
       noteId: selection.noteId,
       beamId: selection.beamId,
       slurId: selection.slurId,
+      labelId: selection.labelId,
       additive: e.metaKey || e.ctrlKey,
     });
   }, [imageDimensions]);
@@ -813,6 +930,29 @@ const ImageViewer: React.FC<{
   }, [setSlurLocalDraft]);
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
+    const labelDrag = labelDragRef.current;
+    if (labelDrag && svgRef.current) {
+      const overlay = svgRef.current.querySelector<SVGSVGElement>('.neon-container.active-page');
+      const point = clientToPageCoords(svgRef.current, e.clientX, e.clientY);
+      if (!overlay || !point) {
+        return;
+      }
+      const next = {
+        labelId: labelDrag.labelId,
+        x: point.x + labelDrag.grabDx,
+        y: point.y + labelDrag.grabDy,
+      };
+      const moved = Math.hypot(next.x - labelDrag.fromX, next.y - labelDrag.fromY);
+      if (moved >= LABEL_DRAG_THRESHOLD) {
+        labelDidDragRef.current = true;
+      }
+      if (!labelDidDragRef.current) {
+        return;
+      }
+      e.preventDefault();
+      setLabelLocalDraft(next);
+      return;
+    }
     const noteDrag = noteDragRef.current;
     if (noteDrag && svgRef.current) {
       const overlay = svgRef.current.querySelector<SVGSVGElement>('.neon-container.active-page');
@@ -853,9 +993,33 @@ const ImageViewer: React.FC<{
         dragStartDataRef.current.point = newPoint;
       }
     }
-  }, [zoom]);
+  }, [zoom, setLabelLocalDraft]);
 
   const handleMouseUp = useCallback((e: MouseEvent) => {
+    const labelDrag = labelDragRef.current;
+    if (labelDrag && svgRef.current) {
+      const point = clientToPageCoords(svgRef.current, e.clientX, e.clientY);
+      labelDragRef.current = null;
+      if (!labelDidDragRef.current || !point) {
+        setLabelLocalDraft(null);
+        isDraggingRef.current = false;
+        dragStartDataRef.current = null;
+        return;
+      }
+      const to = {
+        x: point.x + labelDrag.grabDx,
+        y: point.y + labelDrag.grabDy,
+      };
+      setLabelLocalDraft({ labelId: labelDrag.labelId, x: to.x, y: to.y });
+      onLabelOffsetCommitRef.current?.(
+        labelDrag.labelId,
+        { x: labelDrag.fromX, y: labelDrag.fromY },
+        to,
+      );
+      isDraggingRef.current = false;
+      dragStartDataRef.current = null;
+      return;
+    }
     const noteDrag = noteDragRef.current;
     if (noteDrag && svgRef.current) {
       const overlay = svgRef.current.querySelector<SVGSVGElement>('.neon-container.active-page');
@@ -884,7 +1048,7 @@ const ImageViewer: React.FC<{
     }
     isDraggingRef.current = false;
     dragStartDataRef.current = null;
-  }, []);
+  }, [setLabelLocalDraft]);
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     if (e.touches.length === 2 && svgRef.current) {
