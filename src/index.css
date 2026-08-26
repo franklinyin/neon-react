@@ -118,8 +118,23 @@ button:focus {
     animation: spin 2s linear infinite;
 }
 
+/* Hide Verovio MEI <text> graphics by default (neume/legacy path). */
 .text {
     display: none;
+}
+
+/* Native control-element labels use the same class="text" tspans — keep them visible. */
+g.dir .text,
+g.dynam .text,
+g.tempo .text,
+g.harm .text,
+g.fing .text,
+g.reh .text,
+g.mNum .text,
+g.ornam .text,
+g.cpMark .text,
+g.repeatMark .text {
+    display: inline;
 }
 
 .sylTextRect {

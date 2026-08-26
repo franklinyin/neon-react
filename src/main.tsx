@@ -11,7 +11,11 @@ createRoot(document.getElementById('root')!).render(
 
 if (import.meta.env.DEV) {
   const params = new URLSearchParams(window.location.search);
-  if (params.has('recovery')) {
+  if (params.has('nativedir')) {
+    void import('./lib/verovio/nativedir-r1-probe').then(({ runNativeDirR1 }) => {
+      void runNativeDirR1();
+    });
+  } else if (params.has('recovery')) {
     void import('./lib/verovio/recovery-s5a-probe').then(({ runRecoveryS5A }) => {
       void runRecoveryS5A();
     });
