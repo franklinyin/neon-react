@@ -57,6 +57,25 @@ const SHOW_SLUR_HANDLES = true;
 const LABEL_DRAG_THRESHOLD = 5;
 const BEAM_HIDE_DRAG_THRESHOLD = 5;
 
+function noteIdInSelectedBeam(event: React.MouseEvent, selectedBeamId: string): string | null {
+  const candidates: Element[] = [];
+  if (event.target instanceof Element) {
+    candidates.push(event.target);
+  }
+  const fromPoint = document.elementFromPoint(event.clientX, event.clientY);
+  if (fromPoint instanceof Element && !candidates.includes(fromPoint)) {
+    candidates.push(fromPoint);
+  }
+  for (const el of candidates) {
+    const note = el.closest('.note');
+    const beam = note?.closest('.beam');
+    if (note?.id && beam?.id === selectedBeamId) {
+      return note.id;
+    }
+  }
+  return null;
+}
+
 function selectionFromEvent(event: React.MouseEvent): {
   noteId: string | null;
   beamId: string | null;
@@ -614,6 +633,7 @@ const ImageViewer: React.FC<{
     to: ScorePoint,
   ) => void;
   onBeamHideCommit?: (beamId: string, fromX: number, toX: number) => void;
+  onBeamPolishCommit?: (beamId: string, x: number, noteId?: string | null) => void;
   onLabelOffsetCommit?: (
     labelId: string,
     from: ScorePoint,
@@ -621,6 +641,7 @@ const ImageViewer: React.FC<{
   ) => void;
   noteDragEnabled?: boolean;
   beamHideArmed?: boolean;
+  beamPolishArmed?: boolean;
   onZoomReady?: (zoom: ReturnType<typeof useZoom>) => void;
 }> = ({
   imagePath = '/SK-001.png',
@@ -636,9 +657,11 @@ const ImageViewer: React.FC<{
   onBarLineMoveCommit,
   onBeamStemCommit,
   onBeamHideCommit,
+  onBeamPolishCommit,
   onLabelOffsetCommit,
   noteDragEnabled = false,
   beamHideArmed = false,
+  beamPolishArmed = false,
   onZoomReady,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -676,12 +699,16 @@ const ImageViewer: React.FC<{
   onBeamStemCommitRef.current = onBeamStemCommit;
   const onBeamHideCommitRef = useRef(onBeamHideCommit);
   onBeamHideCommitRef.current = onBeamHideCommit;
+  const onBeamPolishCommitRef = useRef(onBeamPolishCommit);
+  onBeamPolishCommitRef.current = onBeamPolishCommit;
   const onLabelOffsetCommitRef = useRef(onLabelOffsetCommit);
   onLabelOffsetCommitRef.current = onLabelOffsetCommit;
   const noteDragEnabledRef = useRef(noteDragEnabled);
   noteDragEnabledRef.current = noteDragEnabled;
   const beamHideArmedRef = useRef(beamHideArmed);
   beamHideArmedRef.current = beamHideArmed;
+  const beamPolishArmedRef = useRef(beamPolishArmed);
+  beamPolishArmedRef.current = beamPolishArmed;
   const noteDragRef = useRef<{
     noteId: string;
     staffId: string;
@@ -883,6 +910,7 @@ const ImageViewer: React.FC<{
     applySlurSelection(overlay, selectedSlurId);
     applyLabelSelection(overlay, selectedLabelId);
     overlay.classList.toggle('schenker-beam-hide-armed', Boolean(beamHideArmed && selectedBeamId));
+    overlay.classList.toggle('schenker-beam-polish-armed', Boolean(beamPolishArmed && selectedBeamId));
     if (!beamHideArmed) {
       removeBeamHideMarquee(overlay);
       beamHideDragRef.current = null;
@@ -895,6 +923,7 @@ const ImageViewer: React.FC<{
     selectedSlurId,
     selectedLabelId,
     beamHideArmed,
+    beamPolishArmed,
   ]);
 
   const syncSlurEditorLayer = useCallback(() => {
@@ -1091,6 +1120,10 @@ const ImageViewer: React.FC<{
       upsertBeamHideMarquee(overlay, point.x, point.y, point.x, point.y);
       return;
     }
+    // Polish-vertex mode: wait for click (handled in handleClick); do not start stem drag.
+    if (beamPolishArmedRef.current && selectedBeamIdRef.current) {
+      return;
+    }
     const hitBeamId = resolveBeamDragId(
       e.target,
       selection.beamId,
@@ -1216,6 +1249,11 @@ const ImageViewer: React.FC<{
     }
     const point = clientToPageCoords(svg, e.clientX, e.clientY);
     if (!point) {
+      return;
+    }
+    if (beamPolishArmedRef.current && selectedBeamIdRef.current) {
+      const noteId = noteIdInSelectedBeam(e, selectedBeamIdRef.current);
+      onBeamPolishCommitRef.current?.(selectedBeamIdRef.current, point.x, noteId);
       return;
     }
     const { width, height } = pageBounds(svg, imageDimensions);

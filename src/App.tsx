@@ -12,7 +12,7 @@ import { findNearestStaff, measureRenderedStaffs, yToLoc } from './lib/schenker/
 import { buildStructuralNoteInsertAction, type StructuralNoteKind } from './lib/schenker/structuralNote';
 import { buildSchenkerDoubleBarLineInsertAction, buildSchenkerBarLineMoveAction } from './lib/schenker/barline';
 import { buildDeleteElementsAction } from './lib/schenker/remove';
-import { activeScoreOverlay, buildBeamNotesAction, buildSchenkerBeamStemAdjustAction, buildSchenkerBeamHideAction, canBeamSelection } from './lib/schenker/beam';
+import { activeScoreOverlay, buildBeamNotesAction, buildSchenkerBeamStemAdjustAction, buildSchenkerBeamHideAction, buildSchenkerBeamPolishVertexAction, canBeamSelection } from './lib/schenker/beam';
 import { buildFlipAction, canFlipSelection } from './lib/schenker/flip';
 import {
   activeSlurOverlay,
@@ -63,6 +63,7 @@ function App() {
   const [selectedSlurId, setSelectedSlurId] = useState<string | null>(null);
   const [selectedLabelId, setSelectedLabelId] = useState<string | null>(null);
   const [beamHideArmed, setBeamHideArmed] = useState(false);
+  const [beamPolishArmed, setBeamPolishArmed] = useState(false);
   const { svg, loading, editing, error, editAndRender, getMEI, loadMei } = useVerovioScore(CF005_MEI);
   const isEditModeRef = useRef(isEditMode);
   const activeInsertToolRef = useRef(activeInsertTool);
@@ -94,6 +95,7 @@ function App() {
     setIsEditMode(false);
     setActiveInsertTool(null);
     setBeamHideArmed(false);
+    setBeamPolishArmed(false);
     setSelectedNoteIds([]);
     setSelectedBeamId(null);
     setSelectedBarLineId(null);
@@ -108,6 +110,7 @@ function App() {
     setActiveInsertTool(tool);
     if (tool) {
       setBeamHideArmed(false);
+      setBeamPolishArmed(false);
       setSelectedNoteIds([]);
       setSelectedBeamId(null);
       setSelectedBarLineId(null);
@@ -347,6 +350,7 @@ function App() {
     if (!selectedBeamIdRef.current) {
       return;
     }
+    setBeamPolishArmed(false);
     setBeamHideArmed((armed) => !armed);
   }, []);
 
@@ -363,6 +367,35 @@ function App() {
         console.log('[beam-hide] schenkerBeamHide payload', action);
       }
       setBeamHideArmed(false);
+      void editAndRender(action);
+    },
+    [editAndRender],
+  );
+
+  const handleBeamPolishArm = useCallback(() => {
+    if (!isEditModeRef.current || activeInsertToolRef.current) {
+      return;
+    }
+    if (!selectedBeamIdRef.current) {
+      return;
+    }
+    setBeamHideArmed(false);
+    setBeamPolishArmed((armed) => !armed);
+  }, []);
+
+  const handleBeamPolishCommit = useCallback(
+    (beamId: string, x: number, noteId?: string | null) => {
+      if (!isEditModeRef.current || activeInsertToolRef.current) {
+        return;
+      }
+      if (loadingRef.current || editingRef.current) {
+        return;
+      }
+      const action = buildSchenkerBeamPolishVertexAction(beamId, x, noteId);
+      if (import.meta.env.DEV) {
+        console.log('[beam-polish] schenkerBeamPolishVertex payload', action);
+      }
+      setBeamPolishArmed(false);
       void editAndRender(action);
     },
     [editAndRender],
@@ -593,6 +626,7 @@ function App() {
       // Selection mode (default while Edit MEI is active and no insert tool).
       if (hit.barLineId) {
         setBeamHideArmed(false);
+        setBeamPolishArmed(false);
         setSelectedBarLineId(hit.barLineId);
         setSelectedBeamId(null);
         setSelectedNoteIds([]);
@@ -603,6 +637,7 @@ function App() {
       if (hit.beamId) {
         if (selectedBeamIdRef.current !== hit.beamId) {
           setBeamHideArmed(false);
+          setBeamPolishArmed(false);
         }
         setSelectedBeamId(hit.beamId);
         setSelectedBarLineId(null);
@@ -613,6 +648,7 @@ function App() {
       }
       if (hit.slurId) {
         setBeamHideArmed(false);
+        setBeamPolishArmed(false);
         setSelectedSlurId(hit.slurId);
         setSelectedNoteIds([]);
         setSelectedBeamId(null);
@@ -622,6 +658,7 @@ function App() {
       }
       if (hit.labelId) {
         setBeamHideArmed(false);
+        setBeamPolishArmed(false);
         setSelectedLabelId(hit.labelId);
         setSelectedNoteIds([]);
         setSelectedBeamId(null);
@@ -631,6 +668,7 @@ function App() {
       }
       if (!hit.noteId) {
         setBeamHideArmed(false);
+        setBeamPolishArmed(false);
         setSelectedNoteIds([]);
         setSelectedBeamId(null);
         setSelectedBarLineId(null);
@@ -640,6 +678,7 @@ function App() {
       }
       const noteId = hit.noteId;
       setBeamHideArmed(false);
+      setBeamPolishArmed(false);
       setSelectedBeamId(null);
       setSelectedBarLineId(null);
       setSelectedSlurId(null);
@@ -701,6 +740,7 @@ function App() {
       setOpenedMeiName(file.name || 'score.mei');
       setActiveInsertTool(null);
       setBeamHideArmed(false);
+      setBeamPolishArmed(false);
       setSelectedNoteIds([]);
       setSelectedBeamId(null);
       setSelectedBarLineId(null);
@@ -769,9 +809,11 @@ function App() {
               onBarLineMoveCommit={handleBarLineMoveCommit}
               onBeamStemCommit={handleBeamStemCommit}
               onBeamHideCommit={handleBeamHideCommit}
+              onBeamPolishCommit={handleBeamPolishCommit}
               onLabelOffsetCommit={handleLabelOffsetCommit}
               noteDragEnabled={isEditMode && !activeInsertTool && !loading && !editing}
               beamHideArmed={beamHideArmed}
+              beamPolishArmed={beamPolishArmed}
               onZoomReady={(zoom) => setZoomHandler(zoom)}
             />
           )}
@@ -828,6 +870,12 @@ function App() {
                 onBeamHideArm={handleBeamHideArm}
                 beamHideArmed={beamHideArmed}
                 beamHideDisabled={
+                  loading || editing || Boolean(activeInsertTool) || Boolean(error) || !selectedBeamId
+                }
+                beamPolishEnabled={Boolean(selectedBeamId)}
+                onBeamPolishArm={handleBeamPolishArm}
+                beamPolishArmed={beamPolishArmed}
+                beamPolishDisabled={
                   loading || editing || Boolean(activeInsertTool) || Boolean(error) || !selectedBeamId
                 }
               />

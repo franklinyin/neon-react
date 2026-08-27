@@ -56,6 +56,32 @@ export function buildSchenkerBeamHideAction(
   };
 }
 
+export function buildSchenkerBeamPolishVertexAction(
+  elementId: string,
+  x: number,
+  noteId?: string | null,
+): VerovioEditorAction {
+  const id = elementId.trim();
+  if (!id) {
+    throw new Error('schenkerBeamPolishVertex requires a non-empty elementId');
+  }
+  if (!Number.isFinite(x)) {
+    throw new Error('schenkerBeamPolishVertex requires a finite x');
+  }
+  const param: { elementId: string; x: number; noteId?: string } = {
+    elementId: id,
+    x: Math.round(x * 100) / 100,
+  };
+  const stemNoteId = noteId?.trim();
+  if (stemNoteId) {
+    param.noteId = stemNoteId;
+  }
+  return {
+    action: 'schenkerBeamPolishVertex',
+    param,
+  };
+}
+
 export function canDragSelectedBeam(
   overlay: SVGSVGElement | null,
   selectedBeamId: string | null,

@@ -256,6 +256,13 @@ g.repeatMark .text {
     cursor: crosshair;
 }
 
+.neon-container.schenker-beam-polish-armed,
+.neon-container.schenker-beam-polish-armed .beam.selected-schenker-beam,
+.neon-container.schenker-beam-polish-armed .beam.selected-schenker-beam *,
+.neon-container.schenker-beam-polish-armed .schenker-beam-drag-hit {
+    cursor: cell;
+}
+
 .schenker-beam-hide-marquee {
     fill: rgba(200, 40, 40, 0.12);
     stroke: #c82828;

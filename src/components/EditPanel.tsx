@@ -28,6 +28,10 @@ type EditPanelProps = {
   onBeamHideArm?: () => void;
   beamHideArmed?: boolean;
   beamHideDisabled?: boolean;
+  beamPolishEnabled?: boolean;
+  onBeamPolishArm?: () => void;
+  beamPolishArmed?: boolean;
+  beamPolishDisabled?: boolean;
 };
 
 export default function EditPanel({
@@ -57,6 +61,10 @@ export default function EditPanel({
   onBeamHideArm,
   beamHideArmed = false,
   beamHideDisabled = false,
+  beamPolishEnabled = false,
+  onBeamPolishArm,
+  beamPolishArmed = false,
+  beamPolishDisabled = false,
 }: EditPanelProps) {
   const [isOpen, setIsOpen] = useState(true);
   const [selectBy, setSelectBy] = useState<'syllable' | 'neume' | 'nc' | 'staff'>('syllable');
@@ -68,6 +76,7 @@ export default function EditPanel({
   const canResetSlur = enabled && resetSlurEnabled && !resetSlurDisabled;
   const canDashedSlur = enabled && dashedSlurEnabled && !dashedSlurDisabled;
   const canBeamHide = enabled && beamHideEnabled && !beamHideDisabled;
+  const canBeamPolish = enabled && beamPolishEnabled && !beamPolishDisabled;
 
   return (
     <div className="panel" style={enabled ? undefined : { opacity: 0.55 }}>
@@ -199,6 +208,18 @@ export default function EditPanel({
                 title="Drag a box over the selected beam to hide that portion"
               >
                 Hide beam
+              </button>
+            </p>
+            <p className="control">
+              <button
+                type="button"
+                className={`button ${beamPolishArmed ? 'is-active' : ''}`}
+                id="polishBeamVertex"
+                disabled={!canBeamPolish}
+                onClick={onBeamPolishArm}
+                title="Click an inner stem/beam joint to snap the hide cut to that stem"
+              >
+                Polish vertex
               </button>
             </p>
             <p className="control">
