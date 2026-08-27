@@ -15,8 +15,8 @@
          <surface xml:id="m-0463b0db-9308-45e8-ab2b-6976fa613dce" lrx="3232" lry="2480">
             <zone xml:id="zone-0000000673109537" lrx="3229" lry="1031" ulx="185" uly="816" />
             <zone xml:id="zone-0000001369027437" lrx="3230" lry="1673" ulx="180" uly="1452" />
-            <zone xml:id="zone-0000000092798844" lrx="312" lry="998" ulx="275" uly="972" />
-            <zone xml:id="zone-0000000092798845" lrx="312" lry="998" ulx="275" uly="1972" />
+            <zone xml:id="zone-0000000092798844" lrx="262" lry="998" ulx="225" uly="972" />
+            <zone xml:id="zone-0000000092798845" lrx="262" lry="998" ulx="225" uly="1972" />
          </surface>
       </facsimile>
       <body>

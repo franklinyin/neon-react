@@ -17,8 +17,8 @@
                 <zone xml:id="zone-0000000673109537" ulx="185" uly="816" lrx="3229" lry="1031"/>
                 <zone xml:id="zone-0000001369027437" ulx="180" uly="1452" lrx="3230" lry="1673"/>
 
-                <zone xml:id="zone-0000000092798844" ulx="275" uly="972" lrx="312" lry="998"/>
-                <zone xml:id="zone-0000000092798845" ulx="275" uly="1972" lrx="312" lry="998"/>
+                <zone xml:id="zone-0000000092798844" ulx="225" uly="972" lrx="262" lry="998"/>
+                <zone xml:id="zone-0000000092798845" ulx="225" uly="1972" lrx="262" lry="998"/>
             </surface>
         </facsimile>
 
