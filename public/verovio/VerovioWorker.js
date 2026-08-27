@@ -5,7 +5,7 @@
  *   createWasm().then(run) → initRuntime() → Module.onRuntimeInitialized
  * cwrap is attached to the module at parse time and is not a readiness signal.
  */
-importScripts('./verovio-toolkit-wasm.js?v=schenker-clef-fullglyph-v2');
+importScripts('./verovio-toolkit-wasm.js?v=schenker-caret-metrics-v3');
 
 let toolkit;
 const backlog = [];
@@ -80,6 +80,9 @@ function tryStartToolkit() {
       pageMarginLeft: 0,
       pageMarginTop: 0,
       font: 'Bravura',
+      // Embed Liberation Serif WOFF so Schenker label hats use the same outlines
+      // and HarfBuzz shaping on every Chrome (not OS Times/DirectWrite).
+      fontTextLiberation: true,
       useFacsimile: false,
       svgAdditionalAttribute: ['syllable@precedes', 'syllable@follows'],
       svgCss:
