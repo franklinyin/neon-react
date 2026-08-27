@@ -5,6 +5,7 @@ type EditMEIButtonProps = {
   onEnterEditMode: () => void;
   onExitEditMode: () => void;
   onDownloadMEI?: () => void;
+  onDownloadSVG?: () => void;
   downloadDisabled?: boolean;
   onOpenMEI?: (file: File) => void;
   openDisabled?: boolean;
@@ -19,6 +20,7 @@ const EditMEIButton: React.FC<EditMEIButtonProps> = ({
   onEnterEditMode,
   onExitEditMode,
   onDownloadMEI,
+  onDownloadSVG,
   downloadDisabled = false,
   onOpenMEI,
   openDisabled = false,
@@ -29,6 +31,7 @@ const EditMEIButton: React.FC<EditMEIButtonProps> = ({
     { id: 'save', label: 'Save' },
     { id: 'export', label: 'Save and Export to File' },
     { id: 'getmei', label: 'Download MEI' },
+    { id: 'getsvg', label: 'Download SVG' },
     { id: 'revert', label: 'Revert' },
   ];
 
@@ -68,7 +71,7 @@ const EditMEIButton: React.FC<EditMEIButtonProps> = ({
           }}
         />
         {fileMenuItems.map((item) => {
-          const isDownload = item.id === 'getmei';
+          const isDownload = item.id === 'getmei' || item.id === 'getsvg';
           const isOpenMei = item.id === 'openmei';
           const disabled = (isDownload && downloadDisabled) || (isOpenMei && openDisabled);
           return (
@@ -88,7 +91,11 @@ const EditMEIButton: React.FC<EditMEIButtonProps> = ({
                   return;
                 }
                 if (isDownload) {
-                  onDownloadMEI?.();
+                  if (item.id === 'getsvg') {
+                    onDownloadSVG?.();
+                  } else {
+                    onDownloadMEI?.();
+                  }
                 }
               }}
             >

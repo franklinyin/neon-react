@@ -25,6 +25,7 @@ import {
   type SlurBezierPoints,
 } from './lib/schenker/slur';
 import { createMeiBlob, downloadMei } from './lib/mei/downloadMei';
+import { downloadSvg, svgFilenameFromMeiFilename } from './lib/svg/downloadSvg';
 import { readLocalMeiFile } from './lib/mei/openMei';
 import { buildSchenkerNoteMoveAction } from './lib/schenker/move';
 import { buildSchenkerLabelAction, buildSchenkerLabelOffsetAction, canLabelSelection } from './lib/schenker/label';
@@ -64,7 +65,7 @@ function App() {
   const [selectedLabelId, setSelectedLabelId] = useState<string | null>(null);
   const [beamHideArmed, setBeamHideArmed] = useState(false);
   const [beamPolishArmed, setBeamPolishArmed] = useState(false);
-  const { svg, loading, editing, error, editAndRender, getMEI, loadMei } = useVerovioScore(CF005_MEI);
+  const { svg, loading, editing, error, editAndRender, getMEI, getSVG, loadMei } = useVerovioScore(CF005_MEI);
   const isEditModeRef = useRef(isEditMode);
   const activeInsertToolRef = useRef(activeInsertTool);
   const selectedNoteIdsRef = useRef(selectedNoteIds);
@@ -726,6 +727,24 @@ function App() {
     }
   }, [getMEI, openedMeiName]);
 
+  const handleDownloadSVG = useCallback(async () => {
+    if (loadingRef.current || editingRef.current || downloadingRef.current) {
+      return;
+    }
+    downloadingRef.current = true;
+    setDownloading(true);
+    try {
+      const svgText = await getSVG();
+      const filename = svgFilenameFromMeiFilename(openedMeiName || 'score.mei');
+      downloadSvg(svgText, filename);
+    } catch (err) {
+      console.error('[export] Download SVG failed', err);
+    } finally {
+      downloadingRef.current = false;
+      setDownloading(false);
+    }
+  }, [getSVG, openedMeiName]);
+
   const handleOpenMEI = useCallback(async (file: File) => {
     if (loadingRef.current || editingRef.current || downloadingRef.current) {
       return;
@@ -780,6 +799,9 @@ function App() {
         onExitEditMode={exitEditMode}
         onDownloadMEI={() => {
           void handleDownloadMEI();
+        }}
+        onDownloadSVG={() => {
+          void handleDownloadSVG();
         }}
         downloadDisabled={loading || editing || downloading || Boolean(error)}
         onOpenMEI={(file) => {

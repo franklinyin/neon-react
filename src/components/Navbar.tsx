@@ -7,6 +7,7 @@ type NavbarProps = {
   onEnterEditMode: () => void;
   onExitEditMode: () => void;
   onDownloadMEI?: () => void;
+  onDownloadSVG?: () => void;
   downloadDisabled?: boolean;
   onOpenMEI?: (file: File) => void;
   openDisabled?: boolean;
@@ -17,6 +18,7 @@ export default function Navbar({
   onEnterEditMode,
   onExitEditMode,
   onDownloadMEI,
+  onDownloadSVG,
   downloadDisabled,
   onOpenMEI,
   openDisabled,
@@ -49,6 +51,7 @@ export default function Navbar({
             onEnterEditMode={onEnterEditMode}
             onExitEditMode={onExitEditMode}
             onDownloadMEI={onDownloadMEI}
+            onDownloadSVG={onDownloadSVG}
             downloadDisabled={downloadDisabled}
             onOpenMEI={onOpenMEI}
             openDisabled={openDisabled}

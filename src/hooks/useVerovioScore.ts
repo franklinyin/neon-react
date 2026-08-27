@@ -14,6 +14,7 @@ export type VerovioScoreState = {
   error: string | null;
   editAndRender: (action: VerovioEditorAction) => Promise<boolean>;
   getMEI: () => Promise<string>;
+  getSVG: () => Promise<string>;
   loadMei: (raw: string) => Promise<boolean>;
 };
 
@@ -193,6 +194,17 @@ export function useVerovioScore(meiUrl: string): VerovioScoreState {
     return client.getMEI();
   }, []);
 
+  const getSVG = useCallback(async (): Promise<string> => {
+    const client = clientRef.current;
+    if (!client) {
+      throw new Error('Verovio session is not ready');
+    }
+    if (editingRef.current) {
+      throw new Error('Cannot export SVG while an edit is in progress');
+    }
+    return client.renderToSVG(1);
+  }, []);
+
   const loadMei = useCallback(async (raw: string): Promise<boolean> => {
     const client = clientRef.current;
     const session = sessionRef.current;
@@ -235,5 +247,5 @@ export function useVerovioScore(meiUrl: string): VerovioScoreState {
     }
   }, []);
 
-  return { svg, loading, editing, error, editAndRender, getMEI, loadMei };
+  return { svg, loading, editing, error, editAndRender, getMEI, getSVG, loadMei };
 }
